@@ -6,3 +6,8 @@
 	path = envs/singularity-images
 	url = https://github.com/glatard/fmriprep-lts-images.git
 	datalad-id = f1985003-afb4-4bf2-80d0-7139f890d4c2
+[submodule "data"]
+	path = data
+	url = ./data
+	branch = master
+	datalad-id = 04c7a22c-6da0-11ec-a093-99d0dfc81a32
