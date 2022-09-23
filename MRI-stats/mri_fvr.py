@@ -10,7 +10,7 @@ from mri_collect import stats_collect
 import mri_normality
 
 
-def compute_fvr(dataset, subject, sample_size, target, p_values, alpha, nvoxels, methods, 
+def compute_fvr(dataset, subject, sample_size, target, p_values, alpha, nvoxels, methods,
                 k=None, k_round=None):
     '''
     Compute the failing voxel ratio for the given target image
@@ -102,7 +102,7 @@ def compute_fvr_per_target(dataset, subject, sample_size, targets,
     return fvr_per_target
 
 
-def compute_k_fold_fvr(dataset, subject, sample_size, k, reference, 
+def compute_k_fold_fvr(dataset, subject, sample_size, k, reference,
                        supermask, alpha, nb_voxels_in_mask, population, methods):
     '''
     Compute the FVR by splitting the reference set in two training/testing sets.

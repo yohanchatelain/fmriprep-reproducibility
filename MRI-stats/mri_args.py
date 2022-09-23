@@ -40,7 +40,9 @@ def init_global_args(parser):
                         help='Method to combine brain mask (map applies each brain mask to the image repetition)')
     parser.add_argument('--normalize', action='store', default=0, type=int,
                         help='Normalize the T1w to have [0,1] intensities')
-    parser.add_argument('--output', action='store', default='output.pkl', help='Output filename')
+    parser.add_argument('--output', action='store',
+                        default='output.pkl', help='Output filename')
+
 
 def init_module_all_include(parser):
     msg = """

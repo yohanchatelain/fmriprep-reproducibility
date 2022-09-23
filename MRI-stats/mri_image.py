@@ -205,7 +205,7 @@ def get_target_image(path, preproc_re, brain_mask_re,
     return masked_image
 
 
-def get_target(target_prefix, target_subject, target_dataset, 
+def get_target(target_prefix, target_subject, target_dataset,
                template, data_type, normalize, normality_mask):
     # Mask where True values are voxels failings Shapiro-Wilk test
     normality_mask = mri_normality.get_normality_mask(

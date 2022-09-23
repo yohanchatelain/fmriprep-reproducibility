@@ -1,6 +1,7 @@
 import pickle
 import os
 
+
 class Statistic:
 
     def __init__(self, name='output.pkl'):

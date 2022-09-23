@@ -10,7 +10,8 @@ import plotly.graph_objects as go
 tests_name = {
     'exclude': 'all-exclude',
     'include': 'all-include',
-    'one': 'one'
+    'one': 'one',
+    'inter': 'one'
 }
 
 methods_name = [
@@ -94,12 +95,40 @@ def plot_one(directory, test, confidence, subjects, show=False):
     fig = px.violin(d, color='subject', box=True)
     fig.add_hline(1.0 - float(confidence))
     fig.update_xaxes(title='Methods')
-    fig.update_yaxes(title='Positive Ratio')
+    fig.update_yaxes(title='Positive Ratio', range=[0, 1.2])
     fig.update_layout(
         title=f'Confidence level = {confidence} | Test = {test}')
     if show:
         fig.show()
-    fig.write_image(f'{test}_{confidence}.jpg')
+    fig.write_image(f'{test}_{confidence}.jpg', scale=2)
+
+
+def plot_inter(directory, test, confidence, subjects, show=False):
+
+    dl = []
+
+    for target in ref_subjects:
+        for subject in subjects:
+            values = get_test(directory, test, confidence, subject, target)
+            methods = dict(zip(methods_name, [[] for _ in methods_name]))
+            for value in values:
+                methods[value['method']].append(value['fvr'])
+
+            d = pd.DataFrame.from_dict(methods)
+            d.insert(0, 'subject', target)
+            dl.append(d)
+
+    d = pd.concat(dl)
+    fig = px.violin(d, color='subject', box=True)
+    fig.add_hline(float(confidence))
+    fig.update_xaxes(title='Methods')
+    fig.update_yaxes(title='Positive Ratio', range=[0, 1.2])
+    fig.update_layout(
+        title=f'Confidence level = {confidence} | Test = {test} | {"".join(args.subjects)}')
+    if show:
+        fig.show()
+    fig.write_image(
+        f'{test}_{confidence}_{"".join(args.subjects)}.jpg', scale=2)
 
 
 def parse_args():
@@ -122,5 +151,10 @@ if '__main__' == __name__:
     if args.test == 'one':
         plot_one(args.directory, args.test,
                  args.confidence, args.subjects, args.show)
+
+    elif args.test == 'inter':
+        plot_inter(args.directory, args.test,
+                   args.confidence, args.subjects, args.show)
+
     else:
         plot(args.directory, args.test, args.confidence, args.subjects, args.show)
