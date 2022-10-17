@@ -15,7 +15,7 @@ def init_global_args(parser):
                         required=True, help="Template")
     parser.add_argument("--data-type", action="store",
                         default='anat',
-                        required=True, help="Data type")
+                        required=False, help="Data type")
 
     parser.add_argument("--reference-prefix", action='store',
                         required=True, help='Reference prefix path')
@@ -42,6 +42,10 @@ def init_global_args(parser):
                         help='Normalize the T1w to have [0,1] intensities')
     parser.add_argument('--output', action='store',
                         default='output.pkl', help='Output filename')
+    parser.add_argument('--gmm-paths', action='store',
+                        help='Paths containing GMM objects')
+    parser.add_argument('--gmm-component', action='store', type=int,
+                        help='Number of GMM components')
 
 
 def init_module_all_include(parser):

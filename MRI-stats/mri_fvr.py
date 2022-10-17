@@ -10,7 +10,8 @@ from mri_collect import stats_collect
 import mri_normality
 
 
-def compute_fvr(dataset, subject, sample_size, target, p_values, alpha, nvoxels, methods,
+def compute_fvr(dataset, subject, sample_size,
+                target, p_values, alpha, nvoxels, methods,
                 k=None, k_round=None):
     '''
     Compute the failing voxel ratio for the given target image
@@ -40,7 +41,7 @@ def compute_fvr(dataset, subject, sample_size, target, p_values, alpha, nvoxels,
 
 
 def compute_fvr_per_target(dataset, subject, sample_size, targets,
-                           supermask, mean, std, N, fuzzy_sample_size,
+                           supermask, means, stds, N, fuzzy_sample_size,
                            dof, alpha, population, methods, k=None, k_round=None):
     '''
     Compute the failing-voxels ratio (FVR) for each target image in targets for the given methods.
@@ -76,6 +77,8 @@ def compute_fvr_per_target(dataset, subject, sample_size, targets,
 
     fvr_per_target = dict()
 
+    p_values = np.full(supermask.shape, 0)
+
     for i, target in enumerate(targets):
 
         # For each target image, compute the Z-score associated
@@ -85,7 +88,9 @@ def compute_fvr_per_target(dataset, subject, sample_size, targets,
         print_info(score_name, fuzzy_sample_size, target.get_filename())
 
         # Turn Z-score into p-values and sort them into 1D array
-        p_values = score(x, mean, std, dof)
+        for mean, std in zip(means, stds):
+            p_values = np.max([p_values, score(x, mean, std, dof)], axis=0)
+
         #dump_p_values(target, p_values, supermask, alpha)
         p_values_1d = p_values[supermask].copy().ravel()
         p_values_1d.sort()
@@ -93,7 +98,8 @@ def compute_fvr_per_target(dataset, subject, sample_size, targets,
         # Compute the failing-voxels ratio and store it into the global_fv dict
         # fvr = compute_fvr(target, p_values, alpha, N, methods)
         fvr = compute_fvr(dataset, subject, sample_size,
-                          target, p_values_1d, alpha, N, methods, k=k, k_round=k_round)
+                          target, p_values_1d, alpha, N,
+                          methods, k=k, k_round=k_round)
         fvr_per_target[target.get_filename()] = (fvr, p_values)
 
         # Dump masked uncorrected map
@@ -196,8 +202,8 @@ def compute_all_include_fvr(args, methods):
         sample_size=reference_sample_size,
         targets=reference,
         supermask=supermask,
-        mean=mean,
-        std=std,
+        mean=[mean],
+        std=[std],
         N=nb_voxels_in_mask,
         fuzzy_sample_size=reference_sample_size,
         dof=dof,
@@ -206,6 +212,40 @@ def compute_all_include_fvr(args, methods):
         methods=methods)
 
     return fvr
+
+
+def compute_all_include_gmm_fvr(args, methods):
+    reference = mri_image.get_reference_gmm(
+        gmm_prefix=args.reference_prefix,
+        reference_subject=args.reference_subject,
+        reference_dataset=args.reference_dataset,
+        n_components=args.gmm_component
+    )
+
+    for i in range(args.gmm_component):
+        # empty = np.full(reference['model'].shape, 0)
+        empty = reference['empty']
+        for index in reference['indices']:
+            empty[tuple(index)] = 1
+        supermask = np.array(empty)
+        nb_voxels_in_mask = np.count_nonzero(supermask)
+        mean = [gmm.means_.reshape(-1)[i] for gmm in reference['model']]
+        std = [gmm.covariances_.reshape(-1)[i] for gmm in reference['model']]
+        fvr = compute_fvr_per_target(
+            dataset=args.reference_dataset,
+            subject=args.reference_subject,
+            sample_size=1,
+            targets=reference,
+            supermask=supermask,
+            mean=mean,
+            std=std,
+            N=nb_voxels_in_mask,
+            fuzzy_sample_size=1,
+            dof=1,
+            alpha=1 - args.confidence,
+            population=args.population,
+            methods=methods)
+        return fvr
 
 
 def compute_all_exclude_fvr(args, methods):
@@ -277,8 +317,8 @@ def compute_one_fvr(args, methods):
         sample_size=reference_sample_size,
         targets=target,
         supermask=supermask,
-        mean=mean,
-        std=std,
+        mean=[mean],
+        std=[std],
         N=nb_voxels_in_mask,
         fuzzy_sample_size=reference_sample_size,
         dof=dof,

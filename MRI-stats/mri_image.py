@@ -1,3 +1,4 @@
+import pickle
 from templateflow import api as tflow
 import nibabel
 import numpy as np
@@ -88,7 +89,6 @@ def combine_mask(masks_list, operator):
         threshold = 1
     else:
         threshold = 0.5
-    print(masks_list)
     return nilearn.masking.intersect_masks(masks_list, threshold=threshold)
 
 
@@ -175,6 +175,18 @@ def get_reference(reference_prefix, reference_subject, reference_dataset,
                 for image in images]
 
     return np.array(data), supermask
+
+
+def get_reference_gmm(gmm_prefix,
+                      reference_subject,
+                      reference_dataset,
+                      n_components):
+    path = f'{reference_dataset}_{reference_subject}_AI_{n_components}'
+    if gmm_prefix:
+        path = gmm_prefix + os.path.sep + path
+    with open(path, 'rb') as fi:
+        return pickle.load(fi)
+    return None
 
 
 def get_reference_args(args):
