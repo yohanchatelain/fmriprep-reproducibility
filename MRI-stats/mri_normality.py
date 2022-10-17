@@ -43,7 +43,7 @@ def test_normality(t1s, masks, mask_combination, fwh):
 
     normality_image = nilearn.masking.unmask(non_normal_voxels, supermask)
 
-    ratio = nb_non_normal/nb_voxels
+    ratio = nb_non_normal / nb_voxels
 
     print(f'Card(Voxels not normal) = {nb_non_normal}')
     print(f'Card(Voxels)            = {nb_voxels}')
