@@ -1,7 +1,6 @@
 import pickle
 import os
 
-
 class Statistic:
 
     def __init__(self, name='output.pkl'):
@@ -11,6 +10,8 @@ class Statistic:
     def set_name(self, name):
         if not name.endswith('.pkl'):
             self._name = name + '.pkl'
+        else:
+            self._name = name
 
     def append(self, dataset, subject, confidence, sample_size,
                target, fvr, method, k_fold=None, k_round=None):

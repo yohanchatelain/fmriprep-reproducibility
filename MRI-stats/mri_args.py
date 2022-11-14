@@ -14,8 +14,8 @@ def init_global_args(parser):
                         choices=default_templates,
                         required=True, help="Template")
     parser.add_argument("--data-type", action="store",
-                        default='anat',
-                        required=False, help="Data type")
+                        default='anat', choices=['anat'],
+                        required=True, help="Data type")
 
     parser.add_argument("--reference-prefix", action='store',
                         required=True, help='Reference prefix path')
@@ -42,10 +42,8 @@ def init_global_args(parser):
                         help='Normalize the T1w to have [0,1] intensities')
     parser.add_argument('--output', action='store',
                         default='output.pkl', help='Output filename')
-    parser.add_argument('--gmm-paths', action='store',
-                        help='Paths containing GMM objects')
-    parser.add_argument('--gmm-component', action='store', type=int,
-                        help='Number of GMM components')
+    parser.add_argument('--verbose', action='store_true',
+                        help='verbose mode')
 
 
 def init_module_all_include(parser):
@@ -56,6 +54,10 @@ def init_module_all_include(parser):
     """
     subparser = parser.add_parser("all-include", help=msg)
     init_global_args(subparser)
+    subparser.add_argument('--gmm-paths', action='store',
+                           help='Paths containing GMM objects')
+    subparser.add_argument('--gmm-component', action='store', type=int,
+                           help='Number of GMM components')
 
 
 def init_module_all_exclude(parser):
@@ -85,7 +87,7 @@ def init_module_one(parser):
 
 def init_module_normality(parser):
     msg = """
-    Apply a voxel-wise normality test 
+    Apply a voxel-wise normality test
     """
     subparser = parser.add_parser("normality", help=msg)
     init_global_args(subparser)
@@ -93,9 +95,9 @@ def init_module_normality(parser):
 
 def init_module_k_fold(parser):
     msg = """
-    Sanity check that tests that the reference interval (train set) 
+    Sanity check that tests that the reference interval (train set)
     computed contain reference observations (test set).
-    The train/test is splitted with a 80/20 ratio and 
+    The train/test is splitted with a 80/20 ratio and
     is done K times.
     """
     subparser = parser.add_parser("k-fold", help=msg)

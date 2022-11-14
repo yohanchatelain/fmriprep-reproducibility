@@ -16,7 +16,10 @@ sep_h3 = '_'*50
 
 verbose = False
 
-
+def enable_verbose_mode():
+    global verbose
+    verbose = True
+    
 def print_result(target, ratio, alpha, name=None):
     _name = f'{bcolors.BOLD}{name:<9}{bcolors.ENDC} ' if name else ''
     if ratio < alpha:

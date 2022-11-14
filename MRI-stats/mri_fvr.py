@@ -28,7 +28,7 @@ def compute_fvr(dataset, subject, sample_size,
         fp = method(target, p_values, alpha, nvoxels)
         stats_collect.append(dataset=dataset,
                              subject=subject,
-                             confidence=1-alpha,
+                             confidence=1 - alpha,
                              sample_size=sample_size,
                              target=target.get_filename(),
                              fvr=fp,
@@ -69,16 +69,19 @@ def compute_fvr_per_target(dataset, subject, sample_size, targets,
     def dump_failing_voxels(target, alpha, p_values, supermask):
         filename = target.get_filename().replace(
             '.nii.gz', f'_{alpha:.3f}_.nii.gz')
+        filename_supermask = target.get_filename().replace(
+            '.nii.gz', f'_{alpha:.3f}_supermask.nii.gz')
         print(f'dump failing voxels {filename}')
         fp_masked = np.logical_and(p_values < alpha, supermask)
         image = nibabel.Nifti1Image(
             np.where(fp_masked, target.get_fdata(), 0), target.affine)
         mri_image.dump_image(filename, image.get_fdata(), image.affine)
+        mri_image.dump_image(filename_supermask,
+                             supermask.astype(np.int8), image.affine)
 
     fvr_per_target = dict()
 
-    p_values = np.full(supermask.shape, 0)
-
+    print(f'Nb mean: {len(means)} | {len(stds)}')
     for i, target in enumerate(targets):
 
         # For each target image, compute the Z-score associated
@@ -88,10 +91,13 @@ def compute_fvr_per_target(dataset, subject, sample_size, targets,
         print_info(score_name, fuzzy_sample_size, target.get_filename())
 
         # Turn Z-score into p-values and sort them into 1D array
+        p_values = np.full(supermask.shape, 0)
         for mean, std in zip(means, stds):
+            # mean = mean.reshape(x.shape)
+            # std = std.reshape(x.shape)
             p_values = np.max([p_values, score(x, mean, std, dof)], axis=0)
 
-        #dump_p_values(target, p_values, supermask, alpha)
+        # dump_p_values(target, p_values, supermask, alpha)
         p_values_1d = p_values[supermask].copy().ravel()
         p_values_1d.sort()
 
@@ -103,7 +109,7 @@ def compute_fvr_per_target(dataset, subject, sample_size, targets,
         fvr_per_target[target.get_filename()] = (fvr, p_values)
 
         # Dump masked uncorrected map
-        # dump_failing_voxels(target, alpha, p_values, supermask)
+        dump_failing_voxels(target, alpha, p_values, supermask)
 
     return fvr_per_target
 
@@ -136,7 +142,8 @@ def compute_k_fold_fvr(dataset, subject, sample_size, k, reference,
         dof = fuzzy_sample_size - 1
         fvr = compute_fvr_per_target(dataset, subject, sample_size,
                                      test, supermask,
-                                     mean, std,
+                                     [mean],
+                                     [std],
                                      nb_voxels_in_mask, fuzzy_sample_size,
                                      dof, alpha, population, methods, k=k, k_round=i)
         return fvr
@@ -169,13 +176,16 @@ def compute_global_fvr(dataset, subject, sample_size, reference,
 
     fvr = compute_fvr_per_target(dataset, subject, sample_size,
                                  reference, supermask,
-                                 mean, std,
+                                 [mean], [std],
                                  nb_voxels_in_mask, fuzzy_sample_size,
                                  dof, alpha, population, methods)
     return fvr
 
 
 def compute_all_include_fvr(args, methods):
+    if args.verbose:
+        print('In compute_all_include_fvr')
+
     normality_mask_path = mri_normality.run_test_normality(args)
     reference, supermask = mri_image.get_reference(
         reference_prefix=args.reference_prefix,
@@ -187,6 +197,7 @@ def compute_all_include_fvr(args, methods):
         normalize=args.normalize,
         smooth_kernel=args.smooth_kernel,
         normality_mask=normality_mask_path)
+
     reference_sample_size = len(reference)
     nb_voxels_in_mask = np.count_nonzero(supermask)
 
@@ -202,8 +213,8 @@ def compute_all_include_fvr(args, methods):
         sample_size=reference_sample_size,
         targets=reference,
         supermask=supermask,
-        mean=[mean],
-        std=[std],
+        means=[mean],
+        stds=[std],
         N=nb_voxels_in_mask,
         fuzzy_sample_size=reference_sample_size,
         dof=dof,
@@ -215,37 +226,92 @@ def compute_all_include_fvr(args, methods):
 
 
 def compute_all_include_gmm_fvr(args, methods):
-    reference = mri_image.get_reference_gmm(
-        gmm_prefix=args.reference_prefix,
+    if args.verbose:
+        print('In compute_all_include_gmm_fvr')
+
+    gmm_reference = mri_image.get_reference_gmm(
+        gmm_prefix=args.gmm_paths,
         reference_subject=args.reference_subject,
         reference_dataset=args.reference_dataset,
         n_components=args.gmm_component
     )
 
-    for i in range(args.gmm_component):
-        # empty = np.full(reference['model'].shape, 0)
-        empty = reference['empty']
-        for index in reference['indices']:
-            empty[tuple(index)] = 1
-        supermask = np.array(empty)
-        nb_voxels_in_mask = np.count_nonzero(supermask)
-        mean = [gmm.means_.reshape(-1)[i] for gmm in reference['model']]
-        std = [gmm.covariances_.reshape(-1)[i] for gmm in reference['model']]
-        fvr = compute_fvr_per_target(
-            dataset=args.reference_dataset,
-            subject=args.reference_subject,
-            sample_size=1,
-            targets=reference,
-            supermask=supermask,
-            mean=mean,
-            std=std,
-            N=nb_voxels_in_mask,
-            fuzzy_sample_size=1,
-            dof=1,
-            alpha=1 - args.confidence,
-            population=args.population,
-            methods=methods)
-        return fvr
+    normality_mask_path = mri_normality.run_test_normality(args)
+    targets, supermask = mri_image.get_reference(
+        reference_prefix=args.reference_prefix,
+        reference_subject=args.reference_subject,
+        reference_dataset=args.reference_dataset,
+        template=args.template,
+        data_type=args.data_type,
+        mask_combination=args.mask_combination,
+        normalize=args.normalize,
+        smooth_kernel=args.smooth_kernel,
+        normality_mask=normality_mask_path)
+
+    reference_sample_size = len(targets)
+    nb_voxels_in_mask = np.count_nonzero(supermask)
+    dof = reference_sample_size - 1
+    alpha = 1 - args.confidence
+
+    gmmc = args.gmm_component
+
+    means = []
+    stds = []
+
+    for i in range(gmmc):
+        mean = np.full(gmm_reference['empty'].shape, 0)
+        std = np.full(gmm_reference['empty'].shape, 0)
+        for j, index in enumerate(gmm_reference['indices']):
+            idx = tuple(index)
+            ref = gmm_reference['model'][j]
+            mean[idx] = ref.means_.ravel()[i]
+            std[idx] = ref.covariances_.ravel()[i]
+        means.append(mean)
+        stds.append(np.sqrt(std))
+
+    mean = mri_stats.get_mean_reference(targets)
+    std = mri_stats.get_std_reference(targets)
+
+    print(f'Shape ref mean: {mean.shape} | std: {std.shape}')
+    print(f'Shape gmm mean: {means[0].shape} | std: {stds[0].shape}')
+    print(f'mean Min norm {(mean-means[0]).min()}')
+    print(f'mean Max norm {(mean-means[0]).max()}')
+    print(f'std Min norm {(std-stds[0]).min()}')
+    print(f'std Max norm {(std-stds[0]).max()}')
+
+    filename = f'diff_{args.reference_dataset}_{args.reference_subject}_mean'
+    mri_image.dump_image(filename, mean-means[0], targets[0].affine)
+    mri_image.dump_image(filename, np.where(
+        supermask, mean-means[0], 0), targets[0].affine)
+    filename = f'diff_{args.reference_dataset}_{args.reference_subject}_std'
+    mri_image.dump_image(filename, np.where(
+        supermask, std-stds[0], 0), targets[0].affine)
+
+    filename = f'gmm_mean_{args.reference_dataset}_{args.reference_subject}'
+    mri_image.dump_image(filename, means[0], targets[0].affine)
+    filename = f'mean_{args.reference_dataset}_{args.reference_subject}'
+    mri_image.dump_image(filename, mean, targets[0].affine)
+    filename = f'gmm_std_{args.reference_dataset}_{args.reference_subject}'
+    mri_image.dump_image(filename, stds[0], targets[0].affine)
+    filename = f'std_{args.reference_dataset}_{args.reference_subject}'
+    mri_image.dump_image(filename, std, targets[0].affine)
+
+    fvr = compute_fvr_per_target(
+        dataset=args.reference_dataset,
+        subject=args.reference_subject,
+        sample_size=reference_sample_size,
+        targets=targets,
+        supermask=supermask,
+        means=means,
+        stds=stds,
+        N=nb_voxels_in_mask,
+        fuzzy_sample_size=reference_sample_size,
+        dof=dof,
+        alpha=alpha,
+        population=args.population,
+        methods=methods)
+
+    return fvr
 
 
 def compute_all_exclude_fvr(args, methods):
@@ -317,8 +383,8 @@ def compute_one_fvr(args, methods):
         sample_size=reference_sample_size,
         targets=target,
         supermask=supermask,
-        mean=[mean],
-        std=[std],
+        means=[mean],
+        stds=[std],
         N=nb_voxels_in_mask,
         fuzzy_sample_size=reference_sample_size,
         dof=dof,
@@ -378,7 +444,8 @@ def compute_global_fvr_no_recompute(dataset, subject, sample_size, reference, su
 
     fvr = compute_fvr_per_target(dataset, subject, sample_size,
                                  reference, supermask,
-                                 mean, std,
+                                 [mean],
+                                 [std],
                                  nb_voxels_in_mask, fuzzy_sample_size,
                                  dof, alpha, population, methods)
     return fvr

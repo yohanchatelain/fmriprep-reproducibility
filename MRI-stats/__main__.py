@@ -4,6 +4,7 @@
 import warnings
 import mri_fvr
 import mri_args
+import mri_printer
 import mri_normality
 import mri_multiple_testing as mri_mt
 from mri_collect import stats_collect
@@ -14,6 +15,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 def get_methods(args=None):
     return [mri_mt.pce,
             mri_mt.fdr_storey,
+            #            mri_mt.fdr_Sarkar,
             mri_mt.fdr_BH,
             mri_mt.fdr_BY,
             mri_mt.fwe_holm_bonferroni,
@@ -24,7 +26,10 @@ methods = get_methods()
 
 
 def run_all_include(args):
-    fvr = mri_fvr.compute_all_include_fvr(args, methods)
+    if args.gmm_paths or args.gmm_component:
+        fvr = mri_fvr.compute_all_include_gmm_fvr(args, methods)
+    else:
+        fvr = mri_fvr.compute_all_include_fvr(args, methods)
     return fvr
 
 
@@ -59,6 +64,9 @@ tests = {
 
 def main():
     parser, args = mri_args.parse_args()
+    if args.verbose:
+        mri_printer.enable_verbose_mode()
+
     try:
         tests[args.mri_test](args)
         stats_collect.set_name(args.output)

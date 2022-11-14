@@ -89,6 +89,7 @@ def combine_mask(masks_list, operator):
         threshold = 1
     else:
         threshold = 0.5
+    # print(masks_list)
     return nilearn.masking.intersect_masks(masks_list, threshold=threshold)
 
 
@@ -156,6 +157,7 @@ def get_reference(reference_prefix, reference_subject, reference_dataset,
     paths = get_paths(reference_prefix, reference_dataset,
                       reference_subject, data_type)
 
+    # print(paths)
     supermask = None
 
     images = get_images(paths, preproc_re)

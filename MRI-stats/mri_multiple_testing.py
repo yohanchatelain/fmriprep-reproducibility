@@ -34,6 +34,7 @@ def fwe_bonferroni(target, p_values, alpha, N):
     corrected_threshold = alpha / N
     fp = p_values < corrected_threshold
     false_positive = np.ma.sum(fp)
+    fail = 1 if false_positive > 0 else 0
     ratio = false_positive/N
 
     if mri_printer.verbose:
@@ -43,9 +44,9 @@ def fwe_bonferroni(target, p_values, alpha, N):
         print(f'- Card(FP)              = {false_positive}')
         print(f'- Card(Voxels)          = {N}')
         print(f'- Card(FP)/Card(Voxels) = {ratio:.2e} [{ratio*100:f}%]')
-    mri_printer.print_result(target, ratio, alpha, name)
+    mri_printer.print_result(target, fail, alpha, name)
 
-    return ratio
+    return fail
 
 
 def fwe_holm_bonferroni(target, p_values, alpha, N):
@@ -58,6 +59,7 @@ def fwe_holm_bonferroni(target, p_values, alpha, N):
     corrected_threshold_index = np.max(fp) if fp.size != 0 else 0
     corrected_threshold = p_values[corrected_threshold_index]
     false_positive = np.ma.sum(p_values < corrected_threshold)
+    fail = 1 if false_positive > 0 else 0
     ratio = false_positive/N
 
     if mri_printer.verbose:
@@ -67,9 +69,9 @@ def fwe_holm_bonferroni(target, p_values, alpha, N):
         print(f'- Card(FP)              = {false_positive}')
         print(f'- Card(Voxels)          = {N}')
         print(f'- Card(FP)/Card(Voxels) = {ratio:.2e} [{ratio*100:f}%]')
-    mri_printer.print_result(target, ratio, alpha, name)
+    mri_printer.print_result(target, fail, alpha, name)
 
-    return ratio
+    return fail
 
 
 def fdr_BH(target, p_values, alpha, N):
@@ -82,6 +84,7 @@ def fdr_BH(target, p_values, alpha, N):
     corrected_threshold_index = np.max(fp) if fp.size != 0 else 0
     corrected_threshold = p_values[corrected_threshold_index]
     false_positive = np.ma.sum(p_values < corrected_threshold)
+    fail = 1 if false_positive > 0 else 0
     ratio = false_positive/N
 
     if mri_printer.verbose:
@@ -91,9 +94,9 @@ def fdr_BH(target, p_values, alpha, N):
         print(f'- Card(FP)              = {false_positive}')
         print(f'- Card(Voxels)          = {N}')
         print(f'- Card(FP)/Card(Voxels) = {ratio:.2e} [{ratio*100:f}%]')
-    mri_printer.print_result(target, ratio, alpha, name)
+    mri_printer.print_result(target, fail, alpha, name)
 
-    return ratio
+    return fail
 
 
 def fdr_BY(target, p_values, alpha, N):
@@ -107,6 +110,7 @@ def fdr_BY(target, p_values, alpha, N):
     corrected_threshold_index = np.max(fp) if fp.size != 0 else 0
     corrected_threshold = p_values[corrected_threshold_index]
     false_positive = np.ma.sum(p_values < corrected_threshold)
+    fail = 1 if false_positive > 0 else 0
     ratio = false_positive/N
 
     if mri_printer.verbose:
@@ -116,9 +120,34 @@ def fdr_BY(target, p_values, alpha, N):
         print(f'- Card(FP)              = {false_positive}')
         print(f'- Card(Voxels)          = {N}')
         print(f'- Card(FP)/Card(Voxels) = {ratio:.2e} [{ratio*100:f}%]')
-    mri_printer.print_result(target, ratio, alpha, name)
+    mri_printer.print_result(target, fail, alpha, name)
 
-    return ratio
+    return fail
+
+
+def fdr_Sarkar(target, p_values, alpha, N):
+    '''
+    Compute the failing voxels ratio using the False Discovery Rate correction (Sarkar)
+    '''
+    name = 'FDR-Sar'
+    thresholds = alpha * (np.arange(1, N+1) * np.arange(2, N+2)) / (2 * N ** 2)
+    fp = np.where(p_values < thresholds)[0]
+    corrected_threshold_index = np.max(fp) if fp.size != 0 else 0
+    corrected_threshold = p_values[corrected_threshold_index]
+    false_positive = np.ma.sum(p_values < corrected_threshold)
+    fail = 1 if false_positive > 0 else 0
+    ratio = false_positive/N
+
+    if mri_printer.verbose:
+        mri_printer.print_name_method('FDR (Sarkar procedure)')
+        print(
+            f'- Alpha correction      = {corrected_threshold:f} ({corrected_threshold:.3e})')
+        print(f'- Card(FP)              = {false_positive}')
+        print(f'- Card(Voxels)          = {N}')
+        print(f'- Card(FP)/Card(Voxels) = {ratio:.2e} [{ratio*100:f}%]')
+    mri_printer.print_result(target, fail, alpha, name)
+
+    return fail
 
 
 def fdr_storey(target, p_values, alpha, N):
@@ -139,16 +168,16 @@ def fdr_storey(target, p_values, alpha, N):
     corrected_threshold_index = np.max(fp) if fp.size != 0 else 0
     corrected_threshold = p_values[corrected_threshold_index]
     false_positive = np.ma.sum(p_values < corrected_threshold)
+    fail = 1 if false_positive > 0 else 0
     ratio = false_positive/N
 
     if mri_printer.verbose:
-        mri_printer.print_name_method('FDR Storey-{_lambda}')
+        mri_printer.print_name_method(f'FDR Storey-{_lambda}')
         print(
             f'- Alpha correction      = {corrected_threshold:f} ({corrected_threshold:.3e})')
         print(f'- Card(FP)              = {false_positive}')
         print(f'- Card(Voxels)          = {N}')
         print(f'- Card(FP)/Card(Voxels) = {ratio:.2e} [{ratio*100:f}%]')
-    mri_printer.print_result(target, ratio, alpha, name)
+    mri_printer.print_result(target, fail, alpha, name)
 
-    return ratio
-    
+    return fail
