@@ -1,17 +1,21 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import json
-from statistics import NormalDist
-import pandas as pd
-import argparse
-import sys
-import pickle
-import os
-import plotly.express as px
-import glob
-import plotly.graph_objects as go
-import scipy.stats
 import seaborn as sns
+import scipy.stats
+import plotly.graph_objects as go
+import glob
+import plotly.express as px
+import os
+import pickle
+import sys
+import argparse
+import pandas as pd
+from unicodedata import category
+from statistics import NormalDist
+import json
+import numpy as np
+import matplotlib.pyplot as plt
+<< << << < HEAD
+== == == =
+>>>>>> > c5598c6(WIP)
 
 tests_name = {
     'exclude': 'all-exclude',
@@ -405,7 +409,8 @@ def plot_test(args):
 
 def plot_violin(args):
 
-    directory = args.directory
+    directory = args.input_directory
+    output_directory = args.output_directory
     test = args.test
     confidence = args.confidence
     subjects = args.subjects
@@ -430,17 +435,20 @@ def plot_violin(args):
     fig = px.violin(d, color='subject', box=True)
     fig.add_hline(1.0 - float(confidence))
     fig.update_xaxes(title='Methods')
-    fig.update_yaxes(title='Positive Ratio')
+    fig.update_yaxes(title='Failing Ratio')
     fig.update_layout(
         title=f'Confidence level = {confidence} | Test = {test}')
     if show:
         fig.show()
-    fig.write_image(f'{test}_{confidence}.jpg')
+    filename = f'{test}_{confidence}.jpg'
+    path = os.path.join(output_directory, filename)
+    fig.write_image(path)
 
 
 def plot_box(args):
 
-    directory = args.directory
+    directory = args.input_directory
+    output_dir = args.output_directory
     test = args.test
     confidence = args.confidence
     subjects = args.subjects
@@ -573,13 +581,14 @@ def plot_inter(args):
     fig = px.box(d, color='subject', box=True)
     fig.add_hline(float(confidence))
     fig.update_xaxes(title='Methods')
-    fig.update_yaxes(title='Positive Ratio', range=[0, 1.2])
+    fig.update_yaxes(title='Failing Ratio', range=[0, 1.2])
     fig.update_layout(
-        title=f'Confidence level = {confidence} | Test = {test} | {"".join(args.subjects)}')
+        title=f'Confidence level = {confidence:.2f} | Test = {test} | {"".join(args.subjects)}')
     if show:
         fig.show()
-    fig.write_image(
-        f'{test}_{confidence}_{"".join(args.subjects)}.jpg', scale=2)
+    filename = f'{test}_{confidence}_{"".join(args.subjects)}.jpg'
+    output = os.path.join(output_dir, filename)
+    fig.write_image(output, scale=2)
 
 
 def parse_args():

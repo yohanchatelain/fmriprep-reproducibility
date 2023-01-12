@@ -1,16 +1,12 @@
-from kneebow.rotor import Rotor
-from sklearn.metrics import silhouette_score
-from sklearn.mixture import GaussianMixture
-import mri_fvr
-from sklearn.model_selection import KFold
-import mri_stats
-import mri_image
 import nibabel
 import numpy as np
-import mri_printer
+from sklearn.model_selection import KFold
 
-from mri_collect import stats_collect
+import mri_image
 import mri_normality
+import mri_printer
+import mri_stats
+from mri_collect import stats_collect
 
 
 def compute_fvr(reference_dataset, reference_subject, reference_sample_size,
@@ -21,7 +17,7 @@ def compute_fvr(reference_dataset, reference_subject, reference_sample_size,
     for each method in methods
     Return a dictionnary with the method used a the key and the FVR as value
     '''
-    global_fp = dict()
+    global_fp = {}
 
     def print_sep(): return print(mri_printer.sep_h3) if len(
         methods) > 1 else lambda: None
@@ -434,10 +430,10 @@ def compute_n_effective_over_rounds(test, alpha, phats, N):
 
 def compute_n_effective(alpha, phat_k_fold, N):
 
-    phats_round = {}
+    phats_round = dict()
     p_values_voxel_across_rounds = []
     for rnd in phat_k_fold:
-        for _, (phats, p_values) in rnd.items():
+        for target, (phats, p_values) in rnd.items():
             p_values_voxel_across_rounds.append(p_values)
             for test, phat in phats.items():
                 if (v := phats_round.get(test, None)):
@@ -451,73 +447,3 @@ def compute_n_effective(alpha, phat_k_fold, N):
     for test, phats in phats_round.items():
         # Compute N_eff for each test over the k-rounds
         compute_n_effective_over_rounds(test, alpha, phats, N)
-
-
-def gmm(args, voxels):
-    components = args.components
-    if components is not None:
-        return GaussianMixture(n_components=components).fit(voxels)
-
-    bic = []
-    sil = []
-    for i in range(1, 10):
-        gm = GaussianMixture(n_components=i).fit(voxels)
-        bic.append(gm.bic(voxels))
-        sil.append(silhouette_score(voxels, gm.predict(voxels)))
-
-    rotor = Rotor()
-    z = np.dstack((np.arange(1, 10), np.gradient(bic)))
-    rotor.fit_rotate(z)
-    n1 = np.argmin(bic)
-    n2 = np.argmax(sil)
-    n3 = rotor.get_elbow_index()
-
-    n = int(np.mean([n1, n2, n3]))
-
-    return GaussianMixture(n_components=n).fit(voxels)
-
-
-def compute_gmm_fvr(args, methods):
-    normality_mask_path = mri_normality.run_test_normality(args)
-    reference, supermask = mri_image.get_reference(
-        reference_prefix=args.reference_prefix,
-        reference_subject=args.reference_subject,
-        reference_dataset=args.reference_dataset,
-        template=args.template,
-        data_type=args.data_type,
-        mask_combination=args.mask_combination,
-        normalize=args.normalize,
-        smooth_kernel=args.smooth_kernel,
-        normality_mask=normality_mask_path)
-    reference_sample_size = len(reference)
-    nb_voxels_in_mask = np.count_nonzero(supermask)
-
-    print(f'Sample size: {reference_sample_size}')
-
-    indices = np.array(np.nonzero(supermask)).T
-    empty = np.full(reference[0].get_fdata().shape, 0)
-    voxels = np.array([image.get_fdata() for image in reference])
-    model = [gmm(args, voxels[(...,) + tuple(index)])
-             for index in tqdm.tqdm(indices)]
-
-    mean = mri_stats.get_mean_reference(reference)
-    std = mri_stats.get_std_reference(reference)
-    dof = reference_sample_size - 1
-    alpha = 1 - args.confidence
-
-    fvr = compute_fvr_per_target(
-        dataset=args.reference_dataset,
-        subject=args.reference_subject,
-        sample_size=reference_sample_size,
-        targets=reference,
-        supermask=supermask,
-        mean=mean,
-        std=std,
-        N=nb_voxels_in_mask,
-        fuzzy_sample_size=reference_sample_size,
-        dof=dof,
-        alpha=alpha,
-        population=args.population,
-        methods=methods)
-
-    return fvr
