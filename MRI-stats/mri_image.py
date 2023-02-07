@@ -193,6 +193,8 @@ def get_reference(prefix, subject, dataset, template, data_type):
 #     return np.array(data), supermask
 
 def get_masked_t1(t1, mask, smooth_kernel):
+    if smooth_kernel == 0:
+        smooth_kernel = None
     return nilearn.masking.apply_mask(imgs=t1,
                                       mask_img=mask,
                                       smoothing_fwhm=smooth_kernel)

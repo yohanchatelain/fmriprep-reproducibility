@@ -16,33 +16,32 @@ def get_normality_mask(normality_mask_dir):
     return image.get_fdata().astype('bool')
 
 
-def test_normality(images, mask):
+def test_normality(t1s, masks, mask_combination, fwh):
     '''
     Compute a voxel-wise normality test for all images
     Returns a binary Nifti image with voxels rejecting the normality test set to True
     '''
 
-    # Retrieve all indices inside the mask
-    indices = np.array(np.nonzero(mask)).T
-    empty = np.full(images[0].get_fdata().shape, 0)
+    t1_masked, supermask = mri_image.mask_t1(t1s, masks, mask_combination, fwh)
+    (n_samples, t1_shape) = t1_masked.shape
 
-    # Count the number of voxels
-    nb_voxels = indices.shape[0]
-    nb_non_normal = 0
+    nb_voxels = np.count_nonzero(supermask.get_fdata())
 
     # voxels is 4D array made with the N MCA repetitions
-    voxels = np.array([image.get_fdata() for image in images])
+    # voxels = np.array([t1.get_fdata() for t1 in t1_masked])
     # We test the normality using the Shapiro-Wilk test
     # scipy.stats.shapiro returns a pair (W,p-value)
     # Normality is rejected if p-value < 0.05.
-    # It gives a 3D array of boolean with True if the voxels rejects the normality test
-    non_normal_voxels = [scipy.stats.shapiro(
-        voxels[(...,) + tuple(index)])[1] < 0.05 for index in tqdm.tqdm(indices)]
-    # We count the number of non-normal voxels
+    # It gives a 3D array of boolean with True if the voxels rejects the
+    # normality test
+    shapiro_test = (scipy.stats.shapiro(
+        t1_masked[..., index])[1] < 0.05
+        for index in tqdm.tqdm(range(t1_shape)))
+    non_normal_voxels = np.fromiter(shapiro_test, bool)
+    # # We count the number of non-normal voxels
+    nb_non_normal = non_normal_voxels.sum()
 
-    for i, index in tqdm.tqdm(enumerate(indices)):
-        empty[tuple(index)] = 1 if non_normal_voxels[i] else 0
-        nb_non_normal += 1 if non_normal_voxels[i] else 0
+    normality_image = nilearn.masking.unmask(non_normal_voxels, supermask)
 
     ratio = nb_non_normal/nb_voxels
 
@@ -50,7 +49,7 @@ def test_normality(images, mask):
     print(f'Card(Voxels)            = {nb_voxels}')
     print(f'non-normal voxel ratio   = {ratio:.2e} [{ratio*100:f}%]')
 
-    return nibabel.Nifti1Image(empty, images[0].affine)
+    return normality_image
 
 
 def run_test_normality(args):
@@ -59,28 +58,27 @@ def run_test_normality(args):
     Save the non-normality brain Nifti image computed and
     returns the filename
     '''
-    if not args.mask_non_normal_voxels:
-        return None
 
     template = args.template
     dataset = args.reference_dataset
     subject = args.reference_subject
+    mask_combination = args.mask_combination
+    fwh = args.smooth_kernel
 
-    reference, supermask = mri_image.get_reference(
-        reference_prefix=args.reference_prefix,
-        reference_subject=args.reference_subject,
-        reference_dataset=args.reference_dataset,
+    t1s, masks = mri_image.get_reference(
+        prefix=args.reference_prefix,
+        subject=args.reference_subject,
+        dataset=args.reference_dataset,
         template=args.template,
-        data_type=args.data_type,
-        mask_combination=args.mask_combination,
-        normalize=args.normalize,
-        smooth_kernel=args.smooth_kernel,
-        normality_mask=None)
+        data_type=args.data_type)
 
     mri_printer.print_sep1('Normality test')
-    non_normal_image = test_normality(reference, supermask)
+    non_normal_image = test_normality(t1s,
+                                      masks,
+                                      mask_combination,
+                                      fwh)
 
-    filename = f'non-normal-{dataset}-{subject}-{template}.nii.gz'
+    filename = f'non-normal-{dataset}-{subject}-{template}-{mask_combination}-{fwh}.nii.gz'
     nibabel.save(non_normal_image, filename)
 
     return non_normal_image.get_filename()
