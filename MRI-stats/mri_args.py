@@ -44,6 +44,8 @@ def init_global_args(parser):
                         default='output.pkl', help='Output filename')
     parser.add_argument('--verbose', action='store_true',
                         help='verbose mode')
+    parser.add_argument(
+        '--score', choices=['z-score', 't-score'], default='z-score', help='Score to use')
 
 
 def init_module_all_include(parser):

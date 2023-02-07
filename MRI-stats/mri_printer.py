@@ -16,10 +16,12 @@ sep_h3 = '_'*50
 
 verbose = False
 
+
 def enable_verbose_mode():
     global verbose
     verbose = True
-    
+
+
 def print_result(target, ratio, alpha, name=None):
     _name = f'{bcolors.BOLD}{name:<9}{bcolors.ENDC} ' if name else ''
     if ratio < alpha:
@@ -29,6 +31,14 @@ def print_result(target, ratio, alpha, name=None):
         msg = f"FAIL [{ratio*100:>6.3f}%]"
         msg_color = f'{_name}{bcolors.BOLD}{bcolors.FAIL}{msg:^7}{bcolors.ENDC}  {target.get_filename()}'
     print(msg_color)
+
+
+def print_info(score, nsample, target, i=None):
+    if verbose:
+        name = f'{score} ({nsample} repetitions)'
+        print_sep1(f'{name:^40}')
+        header = f"Target ({i}): {target}"
+        print_sep2(f'{header:^40}')
 
 
 def print_name_method(name):

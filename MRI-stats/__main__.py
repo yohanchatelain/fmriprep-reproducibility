@@ -14,11 +14,14 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def get_methods(args=None):
     return [mri_mt.pce,
-            mri_mt.fdr_storey,
-            #            mri_mt.fdr_Sarkar,
-            mri_mt.fdr_BH,
+            mri_mt.fdr_TSBY,
+            mri_mt.fdr_TSBH,
             mri_mt.fdr_BY,
+            mri_mt.fdr_BH,
+            mri_mt.fwe_simes_hochberg,
             mri_mt.fwe_holm_bonferroni,
+            mri_mt.fwe_holm_sidak,
+            mri_mt.fwe_sidak,
             mri_mt.fwe_bonferroni]
 
 

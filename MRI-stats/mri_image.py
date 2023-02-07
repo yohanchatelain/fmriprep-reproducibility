@@ -42,6 +42,16 @@ def dump_stat(target, stat_image, supermask, alpha, stat_name=''):
     dump_image(filename, image.get_fdata(), image.affine)
 
 
+def dump_failing_voxels(target, mask, alpha, p_values, fwh):
+    confidence = 1 - alpha
+    new_filename = f'_{confidence}_fwh_{fwh}.nii.gz'
+    filename = target.get_filename().replace('.nii.gz', new_filename)
+    mask = mask.get_fdata().astype('bool')
+    fp_masked = np.logical_and(p_values <= alpha, mask)
+    image = nibabel.Nifti1Image(fp_masked, target.affine)
+    dump_image(filename, image.get_fdata(), image.affine)
+
+
 def dump_mean(target, mean, supermask, alpha):
     '''
     Dump mean for masked target
@@ -67,16 +77,16 @@ def get_images(paths, preproc_re):
     '''
     Load Nifti1Image from image paths
     '''
-    return [load_image(glob.glob(os.path.join(path, preproc_re))[0])
-            for path in paths]
+    return np.array([load_image(glob.glob(os.path.join(path, preproc_re))[0])
+                     for path in paths])
 
 
 def get_masks(paths, brain_mask_re):
     '''
     Load Nifti1Image from mask paths
     '''
-    return [load_image(glob.glob(os.path.join(path, brain_mask_re))[0])
-            for path in paths]
+    return np.array([load_image(glob.glob(os.path.join(path, brain_mask_re))[0])
+                     for path in paths])
 
 
 def combine_mask(masks_list, operator):
@@ -142,41 +152,57 @@ def get_paths(prefix, dataset, subject, data_type):
     return paths
 
 
-def get_reference(reference_prefix, reference_subject, reference_dataset,
-                  template, data_type, mask_combination, normalize,
-                  smooth_kernel, normality_mask):
+def get_reference(prefix, subject, dataset, template, data_type):
     '''
-    Gather images used as reference
+    Returns T1 + mask images for given prefix, subject and dataset
     '''
-
-    data = []
-    # Mask where True values are voxels failings Shapiro-Wilk test
-    normality_mask = mri_normality.get_normality_mask(normality_mask)
-    preproc_re = get_preproc_re(reference_subject, template)
-    brain_mask_re = get_brainmask_re(reference_subject, template)
-    paths = get_paths(reference_prefix, reference_dataset,
-                      reference_subject, data_type)
-
-    # print(paths)
-    supermask = None
+    preproc_re = get_preproc_re(subject, template)
+    brain_mask_re = get_brainmask_re(subject, template)
+    paths = get_paths(prefix, dataset, subject, data_type)
 
     images = get_images(paths, preproc_re)
     masks = get_masks(paths, brain_mask_re)
-    supermask = combine_mask(
-        masks, mask_combination).get_fdata().astype('bool')
 
-    if mask_combination == 'map':
-        data = [get_reference_image(image, mask.get_fdata(), normalize,
-                                    smooth_kernel, normality_mask)
-                for image, mask in zip(images, masks)]
-    elif mask_combination in ('union', 'intersection'):
-        if normality_mask is not None:
-            supermask = np.ma.logical_and(supermask, ~normality_mask)
-        data = [get_reference_image(image, supermask, normalize,
-                                    smooth_kernel, normality_mask=None)
-                for image in images]
+    return images, masks
 
-    return np.array(data), supermask
+
+# def get_reference(reference_prefix, reference_subject, reference_dataset,
+#                   template, data_type, mask_combination, normalize,
+#                   smooth_kernel, normality_mask):
+#     '''
+#     Gather images used as reference
+#     '''
+
+#     data = []
+#     # Mask where True values are voxels failings Shapiro-Wilk test
+#     normality_mask = mri_normality.get_normality_mask(normality_mask)
+#     preproc_re = get_preproc_re(reference_subject, template)
+#     brain_mask_re = get_brainmask_re(reference_subject, template)
+#     paths = get_paths(reference_prefix, reference_dataset,
+#                       reference_subject, data_type)
+
+#     # print(paths)
+#     supermask = None
+
+#     images = get_images(paths, preproc_re)
+#     masks = get_masks(paths, brain_mask_re)
+#     supermask = combine_mask(
+#         masks, mask_combination).get_fdata().astype('bool')
+
+
+#     return np.array(data), supermask
+
+def get_masked_t1(t1, mask, smooth_kernel):
+    return nilearn.masking.apply_mask(imgs=t1,
+                                      mask_img=mask,
+                                      smoothing_fwhm=smooth_kernel)
+
+
+def mask_t1(t1s, masks, mask_combination, smooth_kernel):
+    supermask = combine_mask(masks, mask_combination)
+    masked_t1s = map(lambda t1: get_masked_t1(
+        t1, supermask, smooth_kernel), t1s)
+    return np.stack(masked_t1s), supermask
 
 
 def get_reference_gmm(gmm_prefix,

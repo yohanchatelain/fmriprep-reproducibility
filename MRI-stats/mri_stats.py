@@ -23,11 +23,17 @@ def get_std_reference(reference):
     Unbiased estimator for standard deviation with small sample size.
     '''
     reference_data = np.array([image.get_fdata() for image in reference])
+    std = np.ma.std(reference_data, axis=0, ddof=1, dtype=np.float64)
     if reference.size <= 10:
-        coef = c4(reference.shape[0])
-        return np.ma.std(reference_data, axis=0, ddof=1, dtype=np.float64) / coef
+        return std / c4(reference.shape[0])
     else:
-        return np.ma.std(reference_data, axis=0, dtype=np.float64)
+        return std
+
+
+def get_sem_reference(reference):
+    reference_data = np.array([image.get_fdata() for image in reference])
+    sem = scipy.stats.sem(reference_data, axis=0, ddof=1, dtype=np.float64)
+    return sem
 
 
 def z_score(x, mean, std):
@@ -37,37 +43,41 @@ def z_score(x, mean, std):
     return (x-mean)/std
 
 
-def p_values_z_score(x, mean, std, dof):
+def p_values_z_score(x, mean, std):
     '''
     Compute p-values from Z-score
     '''
-    z = z_score(x, mean, std)
-    return scipy.stats.norm.sf(np.abs(z))*2
+    return scipy.stats.norm.sf(np.abs(z_score(x, mean, std)))*2
 
 
-def t_score(x, mean, std, nsample):
+def t_score(x, mean, std=None):
     '''
     Compute T-score
     '''
-    return (x-mean) / (std/np.sqrt(nsample))
+    sem = scipy.stats.sem(x, axis=0, ddof=1, dtype=np.float64)
+    return np.abs(x-mean) / sem
 
 
-def p_values_t_score(x, mean, std, dof):
+def p_values_t_score(x, mean, std=None):
     '''
     Compute p-values from T-score
     '''
-    t = t_score(x, mean, std, dof+1)
-    return scipy.stats.t.sf(np.abs(t), df=dof)*2
+    t = t_score(x, mean)
+    return scipy.stats.t.sf(np.abs(t), df=len(x)-1)*2
 
 
-def get_score(x, N, z_score=True):
+def get_score(score='z-score'):
     '''
-    Get score depending on 
+    Get score
     '''
-    if z_score:
+    if score == 'z-score':
         score_name = 'Z-score'
         score = p_values_z_score
-    else:
+    elif score == 't-score':
         score_name = 'T-score'
         score = p_values_t_score
+    else:
+        msg = f'Unknown score {score}'
+        raise Exception(msg)
+
     return (score_name, score)

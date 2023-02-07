@@ -1,6 +1,7 @@
 import pickle
 import os
 
+
 class Statistic:
 
     def __init__(self, name='output.pkl'):
@@ -14,13 +15,14 @@ class Statistic:
             self._name = name
 
     def append(self, dataset, subject, confidence, sample_size,
-               target, fvr, method, k_fold=None, k_round=None):
+               target, fvr, method, fwh, k_fold=None, k_round=None):
         _row = dict(dataset=dataset,
                     subject=subject,
                     confidence=confidence,
                     sample_size=sample_size,
                     target=target,
                     method=method,
+                    fwh=fwh,
                     fvr=fvr,
                     k_fold=k_fold,
                     k_round=k_round)
