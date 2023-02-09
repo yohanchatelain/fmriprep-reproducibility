@@ -8,7 +8,7 @@ import re
 
 
 def parse_line(line):
-    r = re.compile(r"\[(.*) %\]")
+    r = re.compile(r"\[(.*)%\]")
     [pct] = r.findall(line)
     return float(pct)
 
