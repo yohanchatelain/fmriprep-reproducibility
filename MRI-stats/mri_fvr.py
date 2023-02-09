@@ -480,8 +480,8 @@ def compute_stats(args):
                          args.mask_combination,
                          str(int(args.smooth_kernel))])
 
-    np.save(f'{filename}_mean')
-    np.save(f'{filename}_std')
+    np.save(f'{filename}_mean', mean)
+    np.save(f'{filename}_std', std)
 
     mean_img.to_filename('{filename}_mean')
     std_img.to_filename('{filename}_std')
