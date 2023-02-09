@@ -1,3 +1,4 @@
+import nilearn.masking
 import nibabel
 import numpy as np
 from sklearn.model_selection import KFold
@@ -447,3 +448,40 @@ def compute_n_effective(alpha, phat_k_fold, N):
     for test, phats in phats_round.items():
         # Compute N_eff for each test over the k-rounds
         compute_n_effective_over_rounds(test, alpha, phats, N)
+
+
+def compute_stats(args):
+    reference_t1s, reference_masks = mri_image.get_reference(
+        prefix=args.reference_prefix,
+        subject=args.reference_subject,
+        dataset=args.reference_dataset,
+        template=args.template,
+        data_type=args.data_type)
+
+    reference_sample_size = len(reference_t1s)
+
+    print(f'Sample size: {reference_sample_size}')
+
+    t1s_masked, supermask = mri_image.mask_t1(t1s=reference_t1s,
+                                              masks=reference_masks,
+                                              mask_combination=args.mask_combination,
+                                              smooth_kernel=args.smooth_kernel)
+
+    mean = np.mean(t1s_masked, axis=0)
+    std = np.std(t1s_masked, axis=0)
+
+    mean_img = nilearn.masking.unmask(mean, supermask)
+    std_img = nilearn.masking.unmask(std.supermask)
+
+    filename = '_'.join([args.reference_prefix,
+                         args.reference_dataset,
+                         args.reference_subject,
+                         args.template,
+                         args.mask_combination,
+                         args.smooth_kernel])
+
+    np.save(f'{filename}_mean')
+    np.save(f'{filename}_std')
+
+    mean_img.to_filename('{filename}_mean')
+    std_img.to_filename('{filename}_std')

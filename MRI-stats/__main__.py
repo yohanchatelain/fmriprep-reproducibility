@@ -56,12 +56,17 @@ def run_k_fold(args):
     return fvr
 
 
+def run_stats(args):
+    mri_fvr.compute_stats(args)
+
+
 tests = {
     'all-include': run_all_include,
     'all-exclude': run_all_exclude,
     'one': run_one,
     'normality': run_normality,
-    'k-fold': run_k_fold
+    'k-fold': run_k_fold,
+    'stats': run_stats
 }
 
 

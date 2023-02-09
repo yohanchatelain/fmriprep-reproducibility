@@ -106,6 +106,14 @@ def init_module_k_fold(parser):
     init_global_args(subparser)
 
 
+def init_module_stats(parser):
+    msg = """
+    Submodule for basics statistics (mean, std, sig)
+    """
+    subparser = parser.add_parser("stats", help=msg)
+    init_global_args(subparser)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='mri-stats', prog='mri-stats')
     subparser = parser.add_subparsers(title='MRI-stats submodules',
@@ -116,6 +124,7 @@ def parse_args():
     init_module_one(subparser)
     init_module_normality(subparser)
     init_module_k_fold(subparser)
+    init_module_stats(subparser)
 
     args, _ = parser.parse_known_args()
 
