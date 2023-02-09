@@ -471,7 +471,7 @@ def compute_stats(args):
     std = np.std(t1s_masked, axis=0)
 
     mean_img = nilearn.masking.unmask(mean, supermask)
-    std_img = nilearn.masking.unmask(std.supermask)
+    std_img = nilearn.masking.unmask(std, supermask)
 
     filename = '_'.join([args.reference_prefix,
                          args.reference_dataset,
