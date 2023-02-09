@@ -25,7 +25,7 @@ def parse_file(filename):
 def get_params(filename):
     head, subject, fwh, tail = filename.split('_')
     dataset = head.split('-')[-1]
-    alpha = tail.split('.')[0]
+    alpha = tail.split('.log')[0]
     return (dataset, subject, fwh, alpha)
 
 
