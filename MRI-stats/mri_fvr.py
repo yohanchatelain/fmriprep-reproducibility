@@ -478,7 +478,7 @@ def compute_stats(args):
                          args.reference_subject,
                          args.template,
                          args.mask_combination,
-                         args.smooth_kernel])
+                         str(int(args.smooth_kernel))])
 
     np.save(f'{filename}_mean')
     np.save(f'{filename}_std')
