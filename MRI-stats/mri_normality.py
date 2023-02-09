@@ -16,7 +16,7 @@ def get_normality_mask(normality_mask_dir):
     return image.get_fdata().astype('bool')
 
 
-def test_normality(t1s, masks, mask_combination, fwh):
+def test_normality(t1s, masks, mask_combination, fwh, alpha):
     '''
     Compute a voxel-wise normality test for all images
     Returns a binary Nifti image with voxels rejecting the normality test set to True
@@ -35,7 +35,7 @@ def test_normality(t1s, masks, mask_combination, fwh):
     # It gives a 3D array of boolean with True if the voxels rejects the
     # normality test
     shapiro_test = (scipy.stats.shapiro(
-        t1_masked[..., index])[1] < 0.05
+        t1_masked[..., index])[1] < alpha
         for index in tqdm.tqdm(range(t1_shape)))
     non_normal_voxels = np.fromiter(shapiro_test, bool)
     # # We count the number of non-normal voxels
@@ -64,6 +64,7 @@ def run_test_normality(args):
     subject = args.reference_subject
     mask_combination = args.mask_combination
     fwh = args.smooth_kernel
+    alpha = 1 - args.confidence
 
     t1s, masks = mri_image.get_reference(
         prefix=args.reference_prefix,
@@ -76,9 +77,10 @@ def run_test_normality(args):
     non_normal_image = test_normality(t1s,
                                       masks,
                                       mask_combination,
-                                      fwh)
+                                      fwh,
+                                      alpha)
 
-    filename = f'non-normal-{dataset}-{subject}-{template}-{mask_combination}-{fwh}.nii.gz'
+    filename = f'non-normal-{dataset}-{subject}-{template}-{mask_combination}-{int(fwh)}-{alpha:.3f}.nii.gz'
     nibabel.save(non_normal_image, filename)
 
     return non_normal_image.get_filename()
