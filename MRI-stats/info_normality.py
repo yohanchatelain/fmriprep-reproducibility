@@ -1,4 +1,5 @@
 
+import pandas as pd
 import sys
 import glob
 import os
@@ -32,14 +33,15 @@ def get_params(filename):
 def get_log(directory):
     # {dataset-subejct : {fwh : [(ratio1,alpha1), ..., (ratio_n, alpha_n)] } }
     files = glob.glob(os.path.join(directory, 'non-normal-*.log'))
-    d = {}
+    df = pd.DataFrame(columns=['dataset', 'subject', 'fwh', 'alpha', 'ratio'])
     for file in files:
         (dataset, subject, fwh, alpha) = get_params(file)
         ratio = parse_file(file)
-        key = f'{dataset} {subject}'
-        d[key] = d.get(key, []) + [(alpha, ratio)]
+        df.loc[-1] = [dataset, subject, fwh, alpha, ratio]
+        df.index += 1
 
-    return d
+    df.sort_index(inplace=True)
+    return df
 
 
 if __name__ == '__main__':
