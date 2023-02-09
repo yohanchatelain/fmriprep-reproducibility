@@ -1,5 +1,7 @@
 #!/bin/bash
 
+module load python/3.9
+
 SUCCESS_STATUS="success"
 FAIL_STATUS="fail"
 
@@ -8,151 +10,154 @@ MRI_LOG='mri_log'
 
 mkdir -p ${MRI_PICKLE_DIR} ${MRI_LOG}
 
-confidences=(0.75 0.8 0.9 0.95 0.99 0.995)
+confidences=(0.75 0.8 0.85 0.9 0.95 0.99 0.995)
 
-function run_test_all_include() {
-    REFERENCE_PREFIX=$1
-    REFERENCE_DATASET=$2
-    REFERENCE_SUBJECT=$3
-    REFERENCE_NAME=$4
-    STATUS=$5
-    OUTPUT="all-include_${confidence}_reference_${REFERENCE_NAME}_${REFERENCE_DATASET}_${REFERENCE_SUBJECT}"
-    rm -f run_parallel
-    for confidence in ${confidences[@]}; do
-        echo "python3 MRI-stats/__main__.py all-include \
-            --confidence $confidence \
-            --template MNI152NLin2009cAsym --data-type anat \
-            --reference-prefix ${REFERENCE_PREFIX} --reference-dataset ${REFERENCE_DATASET} --reference-subject ${REFERENCE_SUBJECT} \
-            --output ${OUTPUT} \
-            &>${OUTPUT}.log" >>run_parallel
-    done
-    parallel -j $(nproc) <run_parallel
-    python3 mri_check_status.py --status=${STATUS} --filename="${MRI_PICKLE_DIR}/${OUTPUT}.pkl"
-}
+function run_test() {
+    TEST=$1
+    REFERENCE_PREFIX=$2
+    REFERENCE_DATASET=$3
+    REFERENCE_SUBJECT=$4
+    REFERENCE_NAME=$5
+    TARGET_PREFIX=$6
+    TARGET_DATASET=$7
+    TARGET_SUBJECT=$8
+    TARGET_NAME=$9
+    STATUS=${10}
+    FWH=${11}
+    MASK=${12}
 
-function run_test_all_exclude() {
-    REFERENCE_PREFIX=$1
-    REFERENCE_DATASET=$2
-    REFERENCE_SUBJECT=$3
-    REFERENCE_NAME=$4
-    STATUS=$5
-    OUTPUT="all-exclude_${confidence}_reference_${REFERENCE_NAME}_${REFERENCE_DATASET}_${REFERENCE_SUBJECT}"
-    rm -f run_parallel
-    for confidence in ${confidences[@]}; do
-        echo "python3 MRI-stats/__main__.py all-exclude \
-            --confidence $confidence \
-            --template MNI152NLin2009cAsym --data-type anat \
-            --reference-prefix ${REFERENCE_PREFIX} --reference-dataset ${REFERENCE_DATASET} --reference-subject ${REFERENCE_SUBJECT} \
-            --output ${OUTPUT} \
-            &>${OUTPUT}.log" >>run_parallel
-    done
-    parallel -j $(nproc) <run_parallel
-    python3 mri_check_status.py --status=${STATUS} --filename="${MRI_PICKLE_DIR}/${OUTPUT}.pkl"
-}
+    echo " ### EXPECT PASS ### "
+    echo "    TEST=$1"
+    echo "    REFERENCE_PREFIX=$2"
+    echo "    REFERENCE_DATASET=$3"
+    echo "    REFERENCE_SUBJECT=$4"
+    echo "    REFERENCE_NAME=$5"
+    echo "    TARGET_PREFIX=$6"
+    echo "    TARGET_DATASET=$7"
+    echo "    TARGET_SUBJECT=$8"
+    echo "    TARGET_NAME=$9"
+    echo "    STATUS=${10}"
+    echo "    FWH=${11}"
+    echo "    MASK=${12}"
 
-function run_test_one() {
-    REFERENCE_PREFIX=$1
-    REFERENCE_DATASET=$2
-    REFERENCE_SUBJECT=$3
-    REFERENCE_NAME=$4
-    TARGET_PREFIX=$5
-    TARGET_DATASET=$6
-    TARGET_SUBJECT=$7
-    TARGET_NAME=$8
-    STATUS=$9
-    OUTPUT="one_${confidence}_reference_${REFERENCE_NAME}_${REFERENCE_DATASET}_${REFERENCE_SUBJECT}_target_${TARGET_NAME}_${TARGET_DATASET}_${TARGET_SUBJECT}"
+    PARALLEL=parallel.${RANDOM}
     for confidence in ${confidences[@]}; do
-        echo "python3 MRI-stats/__main__.py one \
-            --confidence $confidence \
+        OUTPUT="${TEST}_${confidence}_reference_${REFERENCE_NAME}_${REFERENCE_DATASET}_${REFERENCE_SUBJECT}_target_${TARGET_NAME}_${TARGET_DATASET}_${TARGET_SUBJECT}_fwh_${FWH}"
+        echo "python3 ~/MRI-stats/__main__.py ${TEST} \
+            --confidence ${confidence} \
             --template MNI152NLin2009cAsym --data-type anat \
             --reference-prefix ${REFERENCE_PREFIX} --reference-dataset ${REFERENCE_DATASET} --reference-subject ${REFERENCE_SUBJECT} \
             --target-prefix ${TARGET_PREFIX} --target-dataset ${TARGET_DATASET} --target-subject ${TARGET_SUBJECT} \
-            --output ${OUTPUT} \
-            &>${OUTPUT}.log" >>run_parallel
+            --mask-combination ${MASK} --smooth-kernel ${FWH} \
+            --output ${MRI_PICKLE_DIR}/${OUTPUT}.pkl
+            &> ${MRI_LOG}/${OUTPUT}.log" >>$PARALLEL
     done
-    parallel -j $(nproc) <run_parallel
-    python3 mri_check_status.py --status=${STATUS} --filename="${MRI_PICKLE_DIR}/${OUTPUT}.pkl"
+    parallel -j 5 <$PARALLEL
+
+    for confidence in ${confidences[@]}; do
+        python3 ~/MRI-stats/mri_check_status.py --status=${STATUS} --filename="${MRI_PICKLE_DIR}/${OUTPUT}.pkl"
+    done
 }
 
 function run_expect_pass() {
-    REFERENCE_PREFIX=$1
-    REFERENCE_DATASET=$2
-    REFERENCE_SUBJECT=$3
-    REFERENCE_NAME=$4
-    TARGET_PREFIX=$5
-    TARGET_DATASET=$6
-    TARGET_SUBJECT=$7
-    TARGET_NAME=$8
-    run_test_all_include $REFERENCE_PREFIX $REFERENCE_DATASET $REFERENCE_SUBJECT $REFERENCE_NAME $SUCCESS_STATUS
-    run_test_all_exclude $REFERENCE_PREFIX $REFERENCE_DATASET $REFERENCE_SUBJECT $REFERENCE_NAME $SUCCESS_STATUS
-    run_test_all_one $REFERENCE_PREFIX $REFERENCE_DATASET $REFERENCE_SUBJECT $REFERENCE_NAME $TARGET_PREFIX $TARGET_DATASET $TARGET_SUBJECT $TARGET_NAME $SUCCESS_STATUS
+    TEST=$1
+    REFERENCE_PREFIX=$2
+    REFERENCE_DATASET=$3
+    REFERENCE_SUBJECT=$4
+    REFERENCE_NAME=$5
+    TARGET_PREFIX=$6
+    TARGET_DATASET=$7
+    TARGET_SUBJECT=$8
+    TARGET_NAME=$9
+    FWH=${10}
+    MASK=${11}
+
+    echo " ### EXPECT PASS ### "
+    echo "    TEST=$1"
+    echo "    REFERENCE_PREFIX=$2"
+    echo "    REFERENCE_DATASET=$3"
+    echo "    REFERENCE_SUBJECT=$4"
+    echo "    REFERENCE_NAME=$5"
+    echo "    TARGET_PREFIX=$6"
+    echo "    TARGET_DATASET=$7"
+    echo "    TARGET_SUBJECT=$8"
+    echo "    TARGET_NAME=$9"
+    echo "    FWH=${10}"
+    echo "    MASK=${11}"
+
+    run_test $TEST $REFERENCE_PREFIX $REFERENCE_DATASET $REFERENCE_SUBJECT $REFERENCE_NAME $TARGET_PREFIX $TARGET_DATASET $TARGET_SUBJECT $TARGET_NAME success $FWH $MASK
 }
 
-REFERENCE_PREFIX=$1
-REFERENCE_NAME=$2
-TARGET_PREFIX=$3
-TARGET_NAME=$4
+function parse_cmd() {
+    cat >parse_cmd.py <<HERE
+import json
+import sys
+import os
 
-# {
-#   "ds000256": {
-#     "sub-CTS201": [
-#       "--participant-label CTS201"
-#       ],
-#     "sub-CTS210": [
-#       "--participant-label CTS210"
-#       ]
-#   },
-#   "ds001748": {
-#     "sub-adult15": [
-#       "--participant-label CTS201"
-#       ],
-#     "sub-adult16": [
-#       "--participant-label CTS210"
-#       ]
-#   },
-#   "ds002338": {
-#     "sub-xp207": [
-#       "--participant-label CTS201"
-#       ],
-#     "sub-xp201": [
-#       "--participant-label CTS210"
-#       ]
-#   },
-#     "ds001600": {
-#     "sub-1": [
-#       "--participant-label 1"
-#       ]
-#   },
-#     "ds001771": {
-#       "sub-36": [
-#         "--participant-label sub-36"
-#         ]
-#   }
+def parse_cmd(filename):
+    with open(filename) as fi:
+        return json.load(fi)
 
-REFERENCE_DATASET=ds000256
-REFERENCE_SUBJECT=sub-CTS201
-run_expect_pass $REFERENCE_PREFIX $REFERENCE_DATASET $REFERENCE_SUBJECT $REFERENCE_NAME $TARGET_PREFIX $TARGET_DATASET $TARGET_SUBJECT $TARGET_NAME
 
-REFERENCE_DATASET=ds000256
-REFERENCE_SUBJECT=sub-CTS210
-run_expect_pass $REFERENCE_PREFIX $REFERENCE_DATASET $REFERENCE_SUBJECT $REFERENCE_NAME $TARGET_PREFIX $TARGET_DATASET $TARGET_SUBJECT $TARGET_NAME
+if '__main__' == __name__:
 
-REFERENCE_DATASET=ds001748
-REFERENCE_SUBJECT=sub-adult15
-run_expect_pass $REFERENCE_PREFIX $REFERENCE_DATASET $REFERENCE_SUBJECT $REFERENCE_NAME $TARGET_PREFIX $TARGET_DATASET $TARGET_SUBJECT $TARGET_NAME
+    filename = sys.argv[1]
+    print(filename)
+    if not (os.path.isfile(filename)):
+        print(f'Unkown file {filename}')
+        sys.exit(1)
 
-REFERENCE_DATASET=ds001748
-REFERENCE_SUBJECT=sub-adult16
-run_expect_pass $REFERENCE_PREFIX $REFERENCE_DATASET $REFERENCE_SUBJECT $REFERENCE_NAME $TARGET_PREFIX $TARGET_DATASET $TARGET_SUBJECT $TARGET_NAME
+    cmd = parse_cmd(filename)
+    for dataset, labels in cmd.items():
+        for label in labels.keys():
+            print(f'{dataset} {label}')
+HERE
+    python3 parse_cmd.py $1 >inputs.txt
+    rm -f parse_cmd.py
+}
 
-REFERENCE_DATASET=ds002338
-REFERENCE_SUBJECT=sub-xp207
-run_expect_pass $REFERENCE_PREFIX $REFERENCE_DATASET $REFERENCE_SUBJECT $REFERENCE_NAME $TARGET_PREFIX $TARGET_DATASET $TARGET_SUBJECT $TARGET_NAME
+function run_all_subject() {
+    parse_cmd fmriprep-cmd.json
+    while read -r DATASET SUBJECT; do
+        REFERENCE_DATASET=${DATASET}
+        REFERENCE_SUBJECT=${SUBJECT}
+        TARGET_DATASET=${DATASET}
+        TARGET_SUBJECT=${SUBJECT}
+        run_expect_pass $TEST $REFERENCE_PREFIX $REFERENCE_DATASET $REFERENCE_SUBJECT $REFERENCE_NAME $TARGET_PREFIX $TARGET_DATASET $TARGET_SUBJECT $TARGET_NAME $FWH $MASK
+    done <inputs.txt
+}
 
-REFERENCE_DATASET=ds002338
-REFERENCE_SUBJECT=sub-xp201
-run_expect_pass $REFERENCE_PREFIX $REFERENCE_DATASET $REFERENCE_SUBJECT $REFERENCE_NAME $TARGET_PREFIX $TARGET_DATASET $TARGET_SUBJECT $TARGET_NAME
+function main() {
+    TEST=$1
+    REFERENCE_PREFIX=$2
+    REFERENCE_NAME=$3
+    TARGET_PREFIX=$4
+    TARGET_NAME=$5
+    FWH=$6
+    MASK=$7
+    DATASET=$8
+    SUBJECT=$9
 
-REFERENCE_DATASET=ds001600
-REFERENCE_SUBJECT=sub-1
-run_expect_pass $REFERENCE_PREFIX $REFERENCE_DATASET $REFERENCE_SUBJECT $REFERENCE_NAME $TARGET_PREFIX $TARGET_DATASET $TARGET_SUBJECT $TARGET_NAME
+    echo "### ARGS ###"
+    echo "TEST=$1"
+    echo "REFERENCE_PREFIX=$2"
+    echo "REFERENCE_NAME=$3"
+    echo "TARGET_PREFIX=$4"
+    echo "TARGET_NAME=$5"
+    echo "FWH=$6"
+    echo "MASK=$7"
+
+    if [ -z $DATASET ]; then
+        run_all_subject
+    else
+        echo "DATASET=$8"
+        echo "SUBJECT=$9"
+        REFERENCE_DATASET=${DATASET}
+        REFERENCE_SUBJECT=${SUBJECT}
+        TARGET_DATASET=${DATASET}
+        TARGET_SUBJECT=${SUBJECT}
+        run_expect_pass $TEST $REFERENCE_PREFIX $REFERENCE_DATASET $REFERENCE_SUBJECT $REFERENCE_NAME $TARGET_PREFIX $TARGET_DATASET $TARGET_SUBJECT $TARGET_NAME $FWH $MASK
+    fi
+}
+
+main

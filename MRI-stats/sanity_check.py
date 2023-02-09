@@ -165,17 +165,17 @@ tests = {
 }
 
 
-def run(*args, **kwargs):
+def run(margs, *args, **kwargs):
     for confidence in confidences:
         for dataset, subjects in datasets.items():
             for subject in subjects:
-                tests[args.test](*args, **kwargs,
-                                 status=SUCCESS_STATUS,
-                                 reference_dataset=dataset,
-                                 reference_subject=subject,
-                                 target_dataset=dataset,
-                                 target_subject=subject,
-                                 confidence=confidence)
+                tests[margs.test](*args, **kwargs,
+                                  status=SUCCESS_STATUS,
+                                  reference_dataset=dataset,
+                                  reference_subject=subject,
+                                  target_dataset=dataset,
+                                  target_subject=subject,
+                                  confidence=confidence)
 
 
 def parse_args():
@@ -186,6 +186,7 @@ def parse_args():
     parser.add_argument('--target-name')
     parser.add_argument('--test', nargs='+', required=True,
                         choices=list(tests.keys()))
+    return parser.parse_args()
 
 
 def set_dirs():
@@ -195,7 +196,7 @@ def set_dirs():
 
 def main():
     args = parse_args()
-    run(reference_prefix=args.reference_prefix,
+    run(args, reference_prefix=args.reference_prefix,
         reference_name=args.reference_name,
         target_prefix=args.target_prefix,
         target_name=args.target_name)
