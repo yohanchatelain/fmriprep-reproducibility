@@ -1,3 +1,5 @@
+from significantdigits import Error, Method
+import significantdigits
 import nilearn.masking
 import nibabel
 import numpy as np
@@ -469,9 +471,12 @@ def compute_stats(args):
 
     mean = np.mean(t1s_masked, axis=0)
     std = np.std(t1s_masked, axis=0)
-
-    mean_img = nilearn.masking.unmask(mean, supermask)
-    std_img = nilearn.masking.unmask(std, supermask)
+    sig = significantdigits.significant_digits(array=t1s_masked,
+                                               reference=mean,
+                                               base=2,
+                                               axis=0,
+                                               error=Error.Relative,
+                                               method=Method.General)
 
     filename = '_'.join([args.reference_prefix,
                          args.reference_dataset,
@@ -480,8 +485,14 @@ def compute_stats(args):
                          args.mask_combination,
                          str(int(args.smooth_kernel))])
 
-    np.save(f'{filename}_mean', mean)
-    np.save(f'{filename}_std', std)
+    def save(x, name):
+        print(f'Unmask {name}')
+        x_img = nilearn.masking.unmask(x, supermask)
+        print(f'Save NumPy {name}')
+        np.save(f'{filename}_{name}', x)
+        print(f'Save Niffi {name}')
+        x_img.to_filename(f'{filename}_{name}')
 
-    mean_img.to_filename('{filename}_mean')
-    std_img.to_filename('{filename}_std')
+    save(mean, 'mean')
+    save(std, 'std')
+    save(sig, 'sig')
