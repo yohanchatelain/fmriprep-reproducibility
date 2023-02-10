@@ -1,3 +1,4 @@
+from plotly.subplots import make_subplots
 import seaborn as sns
 import scipy.stats
 import plotly.graph_objects as go
@@ -154,31 +155,6 @@ def get_mct(df, alpha, alternative='two-sided'):
 
     return pvalues > alpha
 
-# def test_mct(df, alpha, alternative='two-sided'):
-
-#     # Index names = ['dataset', 'subject', 'confidence', 'method', 'sample_size', 'fwh']
-#     index_names = ['dataset', 'subject',
-#                    'confidence', 'method', 'sample_size', 'fwh']
-
-#     def binom(t): return scipy.stats.binomtest(
-#         k=int(t['sum']), n=t.sample_size, p=1-t.confidence, alternative=alternative).pvalue
-
-#     a = df[df['method'] != 'pce'].set_index(['dataset', 'subject', 'sample_size', 'method', 'fwh']).drop(
-#         ['target', 'k_fold', 'k_round'], axis=1)
-
-#     df = df.apply(lambda t: (t.dataset, t.subject,
-#                              t['mean'], t['std']) + (binom(t),), axis=1, result_type='expand')
-
-#     df = df[df['method'] != 'pce'].drop(['k_fold', 'k_round'], axis=1).groupby(
-#         ['dataset', 'subject', 'confidence', 'method', 'sample_size', 'fwh']).agg(np.sum)
-
-#     assert(df.index.names == index_names)
-
-#     pvalues = df.apply(lambda t: scipy.stats.binomtest(
-#         k=int(t.fvr), n=t.name[-2], p=1-t.name[2]).pvalue, axis=1)
-
-#     return pvalues > alpha
-
 
 def plotly_backend(pce, mct, show, no_pce, no_mct):
 
@@ -256,15 +232,137 @@ def plotly_backend(pce, mct, show, no_pce, no_mct):
     for sep in confidence_sep:
         mct_fig.add_hline(y=sep, opacity=0.2)
 
-    # print(x_labels)
-    # print(y_labels)
+    mct_fig.data[0]['x'] = x_new_labels
+    mct_fig.data[0]['y'] = y_new_labels
 
-    # print(fhw_sep)
-    # print(confidence_sep)
+    if show:
+        if not no_pce:
+            pce_fig.show()
+        if not no_mct:
+            mct_fig.show()
+
+
+def plotly_backend_split(pce, mct, show, no_pce, no_mct):
+    # pce = pce.reset_index()
+
+    # title = f'{args.title} ({args.meta_alpha})'
+
+    # pce_fig = make_subplots(
+    #     rows=4, cols=2, subplot_titles=pce['subject'].unique())
+    # subjects = pce['subject'].unique().reshape((4, 2))
+    # for (row, col), subject in np.ndenumerate(subjects):
+
+    #     pce_ = pce[pce['subject'] == subject]
+    #     pce_2d = pce_.reset_index().pivot(
+    #         index=['confidence'], columns=['fwh'], values=0)
+    #     pce_2d_sorted = pce_2d.sort_index(
+    #         axis=1).sort_index(axis=0, ascending=True)
+
+    #     pce_x_labels = [t for t in pce_2d_sorted.sort_index(
+    #         axis=1).columns.values]
+    #     pce_y_labels = [t for t in pce_2d_sorted.index.values]
+    #     colors = ['red', 'green'] + (['orange'] if args.show_nan else [])
+
+    #     p = pce_2d_sorted.replace({False: 0, True: 1, np.nan: 2})
+    #     im = px.imshow(p,
+    #                    color_continuous_scale=colors,
+    #                    x=pce_x_labels, y=pce_y_labels,
+    #                    origin='lower')
+    #     pce_fig.add_trace(im.data[0], row=row + 1, col=col + 1)
+
+    # pce_fig.update_layout(coloraxis=dict(colorscale=colors))
+    # pce_fig.update_layout(title=title)
+    # pce_fig.show()
+
+    title = f'{args.title} ({args.meta_alpha})'
+
+    mct = mct.reset_index()
+    mct_fig = make_subplots(
+        rows=4, cols=2, subplot_titles=mct['subject'].unique())
+    subjects = mct['subject'].unique().reshape((4, 2))
+    for (row, col), subject in np.ndenumerate(subjects):
+
+        mct_ = mct[mct['subject'] == subject]
+        mct_2d = mct_.pivot(
+            index=['confidence', 'method'], columns=['fwh'], values=0)
+        mct_2d_sorted = mct_2d.sort_index(
+            axis=1).sort_index(axis=0, ascending=True)
+
+        mct_x_labels = [t for t in mct_2d_sorted.sort_index(
+            axis=1).columns.values]
+        mct_y_labels = [' '.join(map(str, t))
+                        for t in mct_2d_sorted.sort_index(axis=1).index.values]
+
+        colors = ['red', 'green'] + (['orange'] if args.show_nan else [])
+
+        p = mct_2d_sorted.replace({False: 0, True: 1, np.nan: 2})
+        im = px.imshow(p,
+                       color_continuous_scale=colors,
+                       x=mct_x_labels, y=mct_y_labels,
+                       origin='lower')
+        mct_fig.add_trace(im.data[0], row=row + 1, col=col + 1)
+
+    mct_fig.update_layout(coloraxis=dict(colorscale=colors))
+    mct_fig.update_layout(title=title)
+    mct_fig.show()
+    return
+
+    mct_2d = mct.reset_index().pivot(
+        index=['confidence', 'method'], columns=['fwh', 'subject'], values=0)
+    mct_2d_sorted = mct_2d.sort_index(
+        axis=1).sort_index(axis=0, ascending=False)
+
+    pd.set_option('display.max_rows', 500)
+    print(mct_2d_sorted.mean())
+    print(mct_2d_sorted.mean(axis=1))
+
+    mct_x_labels = [' '.join(map(str, t))
+                    for t in mct_2d_sorted.sort_index(axis=1).columns.values]
+    mct_y_labels = [' '.join(map(str, t))
+                    for t in mct_2d_sorted.sort_index(axis=1).index.values]
+
+    mct_fig = px.imshow(mct_2d_sorted.replace(
+        {False: 0, True: 1, np.nan: 2}), color_continuous_scale=colors, x=mct_x_labels, y=mct_y_labels)
+    mct_fig.update_layout(title=title)
+
+    fhw_sep = []
+    confidence_sep = []
+    x_labels = mct_fig.data[0]['x']
+    y_labels = mct_fig.data[0]['y']
+
+    x_new_labels = []
+    y_new_labels = []
+
+    fwh_before = 0
+    for x in x_labels:
+        fwh, subject = x.split()
+        fwh = int(float(fwh))
+        new_label = f'{fwh} {subject}'
+        x_new_labels.append(new_label)
+        if fwh_before != fwh:
+            if len(x_new_labels) > 2:
+                fhw_sep.append(x_new_labels[-2])
+            fwh_before = fwh
+
+    confidence_before = 0.005
+    for y in y_labels:
+        confidence, method = y.split()
+        # confidence = 1 - float(confidence)
+        new_label = f'{confidence} {method}'
+        y_new_labels.append(new_label)
+        if confidence_before != confidence:
+            if len(y_new_labels) > 2:
+                confidence_sep.append(y_new_labels[-2])
+            confidence_before = confidence
+
+    for sep in fhw_sep:
+        mct_fig.add_vline(x=sep, opacity=0.2)
+
+    for sep in confidence_sep:
+        mct_fig.add_hline(y=sep, opacity=0.2)
 
     mct_fig.data[0]['x'] = x_new_labels
     mct_fig.data[0]['y'] = y_new_labels
-    # mct_fig.add_trace(lines)
 
     if show:
         if not no_pce:
@@ -276,20 +374,6 @@ def plotly_backend(pce, mct, show, no_pce, no_mct):
 def seaborn_backend(pce, mct, show):
 
     sns.set_theme(style='dark', palette='pastel')
-
-    # pce_2d = pce.reset_index().pivot(
-    #     index=['confidence'], columns=['fwh', 'subject'], values=0)
-    # pce_2d_sorted = pce_2d.sort_index(
-    #     axis=1).sort_index(axis=0, ascending=True)
-
-    # pce_x_labels = [' '.join(map(str, t))
-    #                 for t in pce_2d_sorted.sort_index(axis=1).columns.values]
-    # pce_y_labels = [t for t in pce_2d_sorted.index.values]
-
-    # f, ax = plt.subplots()
-    # sns.heatmap(pce_2d_sorted.replace(
-    #     {False: 0, True: 1, np.nan: 2}),
-    #     cmap=['red', 'green', 'orange'], ax=ax)
 
     mct_2d = mct.reset_index().pivot(
         index=['confidence', 'method'], columns=['fwh', 'subject'], values=0)
@@ -335,8 +419,13 @@ def plot_exclude(args):
 
     pce_tests = get_pce(dfs, alpha, alternative='two-sided')
     mct_tests = get_mct(dfs, alpha, alternative='greater')
-    plotly_backend(pce_tests, mct_tests, show,
-                   no_pce=args.no_pce, no_mct=args.no_mct)
+
+    if args.split:
+        plotly_backend_split(pce_tests, mct_tests, show,
+                             no_pce=args.no_pce, no_mct=args.no_mct)
+    else:
+        plotly_backend(pce_tests, mct_tests, show,
+                       no_pce=args.no_pce, no_mct=args.no_mct)
 
 
 def plot_test(args):
@@ -607,6 +696,7 @@ def parse_args():
     parser.add_argument('--no-mct', action='store_true',
                         help='Do not show MCT')
     parser.add_argument('--show-nan', action='store_true', help='Show NaN')
+    parser.add_argument('--split', action='store_true', help='split image')
     return parser.parse_args()
 
 
