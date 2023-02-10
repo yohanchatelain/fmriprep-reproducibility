@@ -243,42 +243,51 @@ def plotly_backend(pce, mct, show, no_pce, no_mct):
 
 
 def plotly_backend_split(pce, mct, show, no_pce, no_mct):
-    # pce = pce.reset_index()
+    pce = pce.reset_index()
 
-    # title = f'{args.title} ({args.meta_alpha})'
+    title = f'{args.title} ({args.meta_alpha})'
 
-    # pce_fig = make_subplots(
-    #     rows=4, cols=2, subplot_titles=pce['subject'].unique())
-    # subjects = pce['subject'].unique().reshape((4, 2))
-    # for (row, col), subject in np.ndenumerate(subjects):
+    pce_fig = make_subplots(rows=4, cols=2,
+                            subplot_titles=pce['subject'].unique(),
+                            shared_xaxes=True,
+                            shared_yaxes=True,
+                            vertical_spacing=0.02,
+                            horizontal_spacing=0.01)
+    subjects = pce['subject'].unique().reshape((4, 2))
+    for (row, col), subject in np.ndenumerate(subjects):
 
-    #     pce_ = pce[pce['subject'] == subject]
-    #     pce_2d = pce_.reset_index().pivot(
-    #         index=['confidence'], columns=['fwh'], values=0)
-    #     pce_2d_sorted = pce_2d.sort_index(
-    #         axis=1).sort_index(axis=0, ascending=True)
+        pce_ = pce[pce['subject'] == subject]
+        pce_2d = pce_.reset_index().pivot(
+            index=['confidence'], columns=['fwh'], values=0)
+        pce_2d_sorted = pce_2d.sort_index(
+            axis=1).sort_index(axis=0, ascending=True)
 
-    #     pce_x_labels = [t for t in pce_2d_sorted.sort_index(
-    #         axis=1).columns.values]
-    #     pce_y_labels = [t for t in pce_2d_sorted.index.values]
-    #     colors = ['red', 'green'] + (['orange'] if args.show_nan else [])
+        pce_x_labels = [t for t in pce_2d_sorted.sort_index(
+            axis=1).columns.values]
+        pce_y_labels = [t for t in pce_2d_sorted.index.values]
+        colors = ['red', 'green'] + (['orange'] if args.show_nan else [])
 
-    #     p = pce_2d_sorted.replace({False: 0, True: 1, np.nan: 2})
-    #     im = px.imshow(p,
-    #                    color_continuous_scale=colors,
-    #                    x=pce_x_labels, y=pce_y_labels,
-    #                    origin='lower')
-    #     pce_fig.add_trace(im.data[0], row=row + 1, col=col + 1)
+        p = pce_2d_sorted.replace({False: 0, True: 1, np.nan: 2})
+        im = px.imshow(p,
+                       color_continuous_scale=colors,
+                       x=pce_x_labels, y=pce_y_labels,
+                       origin='lower')
+        pce_fig.add_trace(im.data[0], row=row + 1, col=col + 1)
 
-    # pce_fig.update_layout(coloraxis=dict(colorscale=colors))
-    # pce_fig.update_layout(title=title)
-    # pce_fig.show()
+    pce_fig.update_layout(coloraxis=dict(colorscale=colors))
+    pce_fig.update_layout(title=title)
+    pce_fig.show()
 
     title = f'{args.title} ({args.meta_alpha})'
 
     mct = mct.reset_index()
-    mct_fig = make_subplots(
-        rows=4, cols=2, subplot_titles=mct['subject'].unique())
+    mct_fig = make_subplots(rows=4, cols=2,
+                            subplot_titles=mct['subject'].unique(),
+                            shared_xaxes=True,
+                            shared_yaxes=True,
+                            vertical_spacing=0.02,
+                            horizontal_spacing=0.01)
+
     subjects = mct['subject'].unique().reshape((4, 2))
     for (row, col), subject in np.ndenumerate(subjects):
 
@@ -304,9 +313,14 @@ def plotly_backend_split(pce, mct, show, no_pce, no_mct):
 
     mct_fig.update_layout(coloraxis=dict(colorscale=colors))
     mct_fig.update_layout(title=title)
-    mct_fig.show()
-    return
 
+    if show:
+        if not no_pce:
+            pce_fig.show()
+        if not no_mct:
+            mct_fig.show()
+
+    return
     mct_2d = mct.reset_index().pivot(
         index=['confidence', 'method'], columns=['fwh', 'subject'], values=0)
     mct_2d_sorted = mct_2d.sort_index(
@@ -363,12 +377,6 @@ def plotly_backend_split(pce, mct, show, no_pce, no_mct):
 
     mct_fig.data[0]['x'] = x_new_labels
     mct_fig.data[0]['y'] = y_new_labels
-
-    if show:
-        if not no_pce:
-            pce_fig.show()
-        if not no_mct:
-            mct_fig.show()
 
 
 def seaborn_backend(pce, mct, show):
