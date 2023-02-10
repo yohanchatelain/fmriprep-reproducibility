@@ -166,32 +166,6 @@ def get_reference(prefix, subject, dataset, template, data_type):
     return images, masks
 
 
-# def get_reference(reference_prefix, reference_subject, reference_dataset,
-#                   template, data_type, mask_combination, normalize,
-#                   smooth_kernel, normality_mask):
-#     '''
-#     Gather images used as reference
-#     '''
-
-#     data = []
-#     # Mask where True values are voxels failings Shapiro-Wilk test
-#     normality_mask = mri_normality.get_normality_mask(normality_mask)
-#     preproc_re = get_preproc_re(reference_subject, template)
-#     brain_mask_re = get_brainmask_re(reference_subject, template)
-#     paths = get_paths(reference_prefix, reference_dataset,
-#                       reference_subject, data_type)
-
-#     # print(paths)
-#     supermask = None
-
-#     images = get_images(paths, preproc_re)
-#     masks = get_masks(paths, brain_mask_re)
-#     supermask = combine_mask(
-#         masks, mask_combination).get_fdata().astype('bool')
-
-
-#     return np.array(data), supermask
-
 def get_masked_t1(t1, mask, smooth_kernel):
     if smooth_kernel == 0:
         smooth_kernel = None
