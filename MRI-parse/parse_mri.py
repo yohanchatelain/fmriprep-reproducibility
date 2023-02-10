@@ -139,6 +139,10 @@ def get_mct(df, alpha, alternative='two-sided'):
     df = df[df['method'] != 'fdr_TSBY']
     df = df[df['method'] != 'fdr_TSBH']
     df = df[df['method'] != 'fdr_BH']
+    df = df[df['method'] != 'fwe_simes_hochberg']
+    df = df[df['method'] != 'fwe_sidak']
+    df = df[df['method'] != 'fwe_holm_sidak']
+    df = df[df['method'] != 'fwe_holm_bonferroni']
 
     indexes = ['dataset', 'subject', 'confidence',
                'fwh', 'sample_size', 'method']
@@ -276,11 +280,13 @@ def plotly_backend_split(pce, mct, show, no_pce, no_mct):
 
     pce_fig.update_layout(coloraxis=dict(colorscale=colors))
     pce_fig.update_layout(title=title)
-    pce_fig.show()
 
     title = f'{args.title} ({args.meta_alpha})'
 
     mct = mct.reset_index()
+    alphas = mct['confidence'].unique()
+    methods = mct['method'].unique()
+
     mct_fig = make_subplots(rows=4, cols=2,
                             subplot_titles=mct['subject'].unique(),
                             shared_xaxes=True,
@@ -313,6 +319,34 @@ def plotly_backend_split(pce, mct, show, no_pce, no_mct):
 
     mct_fig.update_layout(coloraxis=dict(colorscale=colors))
     mct_fig.update_layout(title=title)
+
+    # fhw_sep = []
+    # confidence_sep = []
+    # x_labels = mct_fig.data[0]['x']
+    # y_labels = mct_fig.data[0]['y']
+
+    # x_new_labels = []
+    # y_new_labels = []
+
+    # confidence_before = 0.005
+    # for y in y_labels:
+    #     confidence, method = y.split()
+    #     # confidence = 1 - float(confidence)
+    #     new_label = f'{confidence} {method}'
+    #     y_new_labels.append(new_label)
+    #     if confidence_before != confidence:
+    #         if len(y_new_labels) > 2:
+    #             confidence_sep.append(y_new_labels[-2])
+    #         confidence_before = confidence
+
+    # # for sep in confidence_sep:
+    # #     mct_fig.add_hline(y=sep, opacity=0.2)
+
+    # for alpha in alphas[::2]:
+    #     mct_fig.add_hrect(y0=f'{alpha} {methods[0]}',
+    #                       y1=f'{alpha} {methods[-1]}',
+    #                       fillcolor='black',
+    #                       opacity=0.1)
 
     if show:
         if not no_pce:
