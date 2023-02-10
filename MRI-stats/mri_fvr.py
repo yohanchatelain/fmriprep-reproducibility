@@ -195,7 +195,6 @@ def compute_all_include_fvr(args, methods):
 
     return fvr
 
-
 def compute_all_include_gmm_fvr(args, methods):
     if args.verbose:
         print('In compute_all_include_gmm_fvr')

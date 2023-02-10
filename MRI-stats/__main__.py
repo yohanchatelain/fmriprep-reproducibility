@@ -2,11 +2,13 @@
 # coding: utf-8
 
 import warnings
-import mri_fvr
+
 import mri_args
-import mri_printer
-import mri_normality
+import mri_fvr
+import mri_gmm
 import mri_multiple_testing as mri_mt
+import mri_normality
+import mri_printer
 from mri_collect import stats_collect
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -60,13 +62,18 @@ def run_stats(args):
     mri_fvr.compute_stats(args)
 
 
+def run_gmm(args):
+    mri_gmm.main(args)
+
+
 tests = {
     'all-include': run_all_include,
     'all-exclude': run_all_exclude,
     'one': run_one,
     'normality': run_normality,
     'k-fold': run_k_fold,
-    'stats': run_stats
+    'stats': run_stats,
+    'gmm': run_gmm
 }
 
 
