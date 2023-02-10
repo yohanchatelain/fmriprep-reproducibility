@@ -143,6 +143,7 @@ def get_mct(df, alpha, alternative='two-sided'):
     df = df[df['method'] != 'fwe_sidak']
     df = df[df['method'] != 'fwe_holm_sidak']
     df = df[df['method'] != 'fwe_holm_bonferroni']
+    df = df[df['method'] != 'fdr_BY']
 
     indexes = ['dataset', 'subject', 'confidence',
                'fwh', 'sample_size', 'method']
@@ -188,8 +189,8 @@ def plotly_backend(pce, mct, show, no_pce, no_mct):
 
     pd.set_option('display.max_rows', 500)
 
-    print(mct_2d_sorted.mean())
-    print(mct_2d_sorted.mean(axis=1))
+    # print(mct_2d_sorted.mean())
+    # print(mct_2d_sorted.mean(axis=1))
 
     mct_x_labels = [' '.join(map(str, t))
                     for t in mct_2d_sorted.sort_index(axis=1).columns.values]
@@ -251,13 +252,14 @@ def plotly_backend_split(pce, mct, show, no_pce, no_mct):
 
     title = f'{args.title} ({args.meta_alpha})'
 
-    pce_fig = make_subplots(rows=4, cols=2,
+    pce_fig = make_subplots(rows=8, cols=1,
                             subplot_titles=pce['subject'].unique(),
                             shared_xaxes=True,
                             shared_yaxes=True,
                             vertical_spacing=0.02,
                             horizontal_spacing=0.01)
-    subjects = pce['subject'].unique().reshape((4, 2))
+
+    subjects = pce['subject'].unique().reshape((8, 1))
     for (row, col), subject in np.ndenumerate(subjects):
 
         pce_ = pce[pce['subject'] == subject]
@@ -287,14 +289,14 @@ def plotly_backend_split(pce, mct, show, no_pce, no_mct):
     alphas = mct['confidence'].unique()
     methods = mct['method'].unique()
 
-    mct_fig = make_subplots(rows=4, cols=2,
+    mct_fig = make_subplots(rows=8, cols=1,
                             subplot_titles=mct['subject'].unique(),
                             shared_xaxes=True,
                             shared_yaxes=True,
                             vertical_spacing=0.02,
                             horizontal_spacing=0.01)
 
-    subjects = mct['subject'].unique().reshape((4, 2))
+    subjects = mct['subject'].unique().reshape((8, 1))
     for (row, col), subject in np.ndenumerate(subjects):
 
         mct_ = mct[mct['subject'] == subject]
@@ -318,7 +320,9 @@ def plotly_backend_split(pce, mct, show, no_pce, no_mct):
         mct_fig.add_trace(im.data[0], row=row + 1, col=col + 1)
 
     mct_fig.update_layout(coloraxis=dict(colorscale=colors))
-    mct_fig.update_layout(title=title)
+    mct_fig.update_layout(title='')
+    mct_fig.update_traces(showlegend=False)
+    mct_fig.update_coloraxes(showscale=False)
 
     # fhw_sep = []
     # confidence_sep = []
@@ -443,6 +447,16 @@ def seaborn_backend(pce, mct, show):
         plt.show()
 
 
+def get_optimum(df):
+    df = df.reset_index()
+    g = df.groupby(['confidence', 'fwh'])
+    s = g.sum().drop('sample_size', axis=1)
+    optimum = s.loc[s[0].max() == s[0]]
+    indexes = optimum.index.values
+    (alpha_star, fwh_star) = max(indexes, key=lambda t: (t[0], -t[1]))
+    return (alpha_star, fwh_star)
+
+
 def plot_exclude(args):
 
     reference = args.reference
@@ -461,6 +475,14 @@ def plot_exclude(args):
 
     pce_tests = get_pce(dfs, alpha, alternative='two-sided')
     mct_tests = get_mct(dfs, alpha, alternative='greater')
+
+    (alpha_star, fwh_star) = get_optimum(pce_tests)
+    print(f'pce alpha*={alpha_star}, fwh*={fwh_star}')
+    (alpha_star, fwh_star) = get_optimum(mct_tests)
+    print(f'mct alpha*={alpha_star}, fwh*={fwh_star}')
+
+    pce_tests.to_csv('pce')
+    mct_tests.to_csv('mct')
 
     if args.split:
         plotly_backend_split(pce_tests, mct_tests, show,
