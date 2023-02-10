@@ -22,7 +22,8 @@ def parse_file(filename):
         for line in fi:
             if line.startswith('non-normal voxel ratio'):
                 return parse_line(line)
-    raise Exception('No #voxels line found')
+    print(filename)
+#    raise Exception('No #voxels line found')
 
 
 # non-normal-rr-ds001748_sub-adult15_7_0.100.log
@@ -40,6 +41,8 @@ def get_log(directory):
     for file in files:
         (dataset, subject, fwh, alpha) = get_params(file)
         ratio = parse_file(file)
+        if ratio is None:
+            continue
         df.loc[-1] = [dataset, subject, float(fwh), float(alpha), float(ratio)]
         df.index += 1
 
@@ -89,7 +92,10 @@ def plot(df):
     plot_facet(df)
     subjects = df['subject'].unique()
     for subject in subjects:
-        plot_subject(df[df['subject'] == subject])
+        try:
+            plot_subject(df[df['subject'] == subject])
+        except:
+            continue
 
 
 if __name__ == '__main__':
