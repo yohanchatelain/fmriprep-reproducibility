@@ -491,7 +491,7 @@ def compute_stats(args):
         print(f'Save NumPy {name}')
         np.save(f'{filename}_{name}', x)
         print(f'Save Niffi {name}')
-        x_img.to_filename(f'{filename}_{name}')
+        x_img.to_filename(f'{filename}_{name}.nii')
 
     save(mean, 'mean')
     save(std, 'std')
