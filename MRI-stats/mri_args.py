@@ -120,7 +120,7 @@ def init_module_gmm(parser):
     """
     subparser = parser.add_parser("gmm", help=msg)
     init_global_args(subparser)
-    subparser.add_argument('--gmm-path', default='.mri_cache',
+    subparser.add_argument('--gmm-cache', default='.mri_cache',
                            help='Directory to cache gmm models')
 
 

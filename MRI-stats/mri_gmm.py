@@ -6,6 +6,7 @@ import mri_image
 from sklearn.model_selection import KFold
 from sklearn.mixture import GaussianMixture
 import json
+from filelock import FileLock
 
 gmm_json_filename = 'gmm_path.json'
 regexp_id = re.compile(r'fmriprep_ds\d+_\d+\.\d+')
@@ -28,7 +29,7 @@ def get_key(filenames):
 def get_gmm_path(gmm_dir, prefix, dataset, subject, template, mask, fwh, key):
     gmm_dir += os.path.sep
     prefix = prefix.replace(os.path.sep, '-')
-    return '_'.join([gmm_dir, prefix, dataset, subject, template, mask, fwh, key]) + '.npy'
+    return '_'.join([gmm_dir, prefix, dataset, subject, template, mask, fwh, str(key)]) + '.npy'
 
 
 def dump_gmm(args, m, filenames):
@@ -56,9 +57,12 @@ def dump_gmm(args, m, filenames):
     key = get_key(filenames)
     ds = f'{dataset}_{subject}'
 
-    gmm_json = None
-    with open(gmm_json_filename, 'r') as fi:
-        gmm_json = json.load(fi)
+    gmm_json_path = os.path.join(gmm_dir, gmm_json_filename)
+    if not os.path.exists(gmm_json_path):
+        gmm_json = {}
+    else:
+        with open(gmm_json_path, 'r') as fi:
+            gmm_json = json.load(fi)
 
     ds_dict = gmm_json.get(ds, {})
     key_dict = ds_dict.get(key, {'repetitions_id': filenames})
@@ -74,11 +78,23 @@ def dump_gmm(args, m, filenames):
     ds_dict[key] = key_dict
     gmm_json[ds] = ds_dict
 
-    with open(gmm_json_filename, 'w') as fo:
+    with open(gmm_json_path, 'w') as fo:
         json.dump(gmm_json, fo)
 
-    np.save(file=gmm_path, arr=m, allows_pickle=True)
+    np.save(file=gmm_path, arr=m, allow_pickle=True)
 
+    
+def get_gmm(reg_covar=10**-6):
+    return GaussianMixture(n_components=2, covariance_type='diag', verbose=2, reg_covar=reg_covar)
+
+def gmm_fit(x):
+    reg_covar = 10**-6
+    while reg_covar < 1:
+        gmm = get_gmm(reg_covar)
+        try:
+            return gmm.fit(x), reg_covar
+        except:
+            reg_covar *= 10
 
 def compute_gmm(args):
 
@@ -96,8 +112,10 @@ def compute_gmm(args):
     # ones_in
     kfold_split = kfold.split(reference_t1s)
 
-    gmm = GaussianMixture(n_components=2, covariance_type='diag')
+    gmm = GaussianMixture(n_components=2, covariance_type='diag', verbose=2)
 
+    lock = FileLock('mri_gmm.lock')
+    
     for i, (ones_in, _) in enumerate(kfold_split, start=1):
         mri_printer.print_sep2(f'Round {i:2}')
 
@@ -110,13 +128,18 @@ def compute_gmm(args):
             args.mask_combination,
             args.smooth_kernel)
 
-        m = gmm.fit(t1s_masked)
+        m, reg_covar = gmm_fit(t1s_masked)
 
-        dump_gmm(args, m, filenames)
+        if args.verbose:
+            print(f'fit gmm with T1 (reg_covar={reg_covar:.1e})')
+
+        
+        with lock:
+            dump_gmm(args, m, filenames)
 
 
 def main(args):
-    cache = args.gmm_path
+    cache = args.gmm_cache
     if not os.path.isdir(cache):
         os.makedirs(cache)
 

@@ -6,6 +6,7 @@ import glob
 import os
 import nilearn
 import nilearn.masking
+import tqdm
 
 import mri_printer as mrip
 import mri_constants
@@ -78,7 +79,7 @@ def get_images(paths, preproc_re):
     Load Nifti1Image from image paths
     '''
     return np.array([load_image(glob.glob(os.path.join(path, preproc_re))[0])
-                     for path in paths])
+                     for path in tqdm.tqdm(paths, unit='img', unit_scale=1, desc='loading T1')])
 
 
 def get_masks(paths, brain_mask_re):
@@ -86,7 +87,7 @@ def get_masks(paths, brain_mask_re):
     Load Nifti1Image from mask paths
     '''
     return np.array([load_image(glob.glob(os.path.join(path, brain_mask_re))[0])
-                     for path in paths])
+                     for path in tqdm.tqdm(paths, unit='img', unit_scale=1, desc='loading masks')])
 
 
 def combine_mask(masks_list, operator):
@@ -176,8 +177,8 @@ def get_masked_t1(t1, mask, smooth_kernel):
 
 def mask_t1(t1s, masks, mask_combination, smooth_kernel):
     supermask = combine_mask(masks, mask_combination)
-    masked_t1s = map(lambda t1: get_masked_t1(
-        t1, supermask, smooth_kernel), t1s)
+    masked_t1s = tqdm.tqdm(iterable=map(lambda t1: get_masked_t1(
+        t1, supermask, smooth_kernel), t1s), total=len(t1s), unit='img', unit_scale=1, desc='Masking T1')
     return np.stack(masked_t1s), supermask
 
 
