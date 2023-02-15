@@ -31,7 +31,24 @@ def get_gmm_path(gmm_dir, prefix, dataset, subject, template, mask, fwh, key):
     prefix = prefix.replace(os.path.sep, '-')
     return '_'.join([gmm_dir, prefix, dataset, subject, template, mask, fwh, str(key)]) + '.npy'
 
+def load_gmm(args, filenames):
+    gmm_dir = args.gmm_cache
+    prefix = args.reference_prefix
+    subject = args.reference_subject
+    dataset = args.reference_dataset
+    template = args.template
+    mask = args.mask_combination
+    fwh = str(args.smooth_kernel)
+    key = str(get_key(filenames))
+    ds = f'{dataset}_{subject}'
 
+    gmm_json_path = os.path.join(gmm_dir, gmm_json_filename)
+
+    with open(gmm_json_path, 'r') as fi:
+        gmm_json = json.load(fi)
+
+    return gmm_json[ds][key][mask][fwh][template]
+    
 def dump_gmm(args, m, filenames):
     '''
     gmm_path.json = {

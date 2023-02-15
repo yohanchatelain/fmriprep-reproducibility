@@ -1,6 +1,6 @@
 import numpy as np
 import scipy
-
+import tqdm
 
 def c4(n):
     '''
@@ -40,14 +40,42 @@ def z_score(x, mean, std):
     '''
     Compute Z-score
     '''
-    return (x-mean)/std
+    z = (x-mean)/std
+    if mean.ndim == 1:
+        return z
+    else:
+        np.min(z, axis=0)
 
-
-def p_values_z_score(x, mean, std):
+    
+def gmm_ppf(pdf, cdf, alpha, x):
+    
+    low = optimize(cdf, alpha/2, x)
+    high = optimize(cdf, 1-alpha/2, x)
+    return low, high
+               
+def p_values_z_score(x, mean, std, weights, alpha):
     '''
     Compute p-values from Z-score
     '''
-    return scipy.stats.norm.sf(np.abs(z_score(x, mean, std)))*2
+    def cdf(x):
+        return weights[0] * scipy.stats.norm.cdf(x, loc=mean[0], scale=std[0]) + \
+            weights[1] * scipy.stats.norm.cdf(x, loc=mean[1], scale=std[1])
+    def cdf_local(i,x):
+        return weights[0] * scipy.stats.norm.cdf(x, loc=mean[0][i], scale=std[0][i]) + \
+            weights[1] * scipy.stats.norm.cdf(x, loc=mean[1][i], scale=std[1][i])
+
+    funs = lambda i : lambda z: weights[0] * scipy.stats.norm.cdf(z, loc=mean[0][i], scale=std[0][i]) + \
+               weights[1] * scipy.stats.norm.cdf(z, loc=mean[1][i], scale=std[1][i])
+
+    print(funs(0)(0))
+    if mean.ndim > 1:
+        #z = np.min(z, axis=0)
+        w0, w1 = weights
+        lt,ht = gmm_ppf(funs, alpha, x)
+        return 2 * np.min( (cdf(lt), 1-cdf(ht)), axis=0 )
+    else:
+        z = np.abs((x-mean)/std)
+        return scipy.stats.norm.sf(z)*2
 
 
 def t_score(x, mean, std=None):

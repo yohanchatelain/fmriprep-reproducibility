@@ -46,7 +46,7 @@ def init_global_args(parser):
                         help='verbose mode')
     parser.add_argument(
         '--score', choices=['z-score', 't-score'], default='z-score', help='Score to use')
-
+    parser.add_argument('--gmm', action='store_true', help="Use GMM model")
 
 def init_module_all_include(parser):
     msg = """
@@ -69,6 +69,8 @@ def init_module_all_exclude(parser):
     observations, excluding the one being tested.
     """
     subparser = parser.add_parser("all-exclude", help=msg)
+    subparser.add_argument('--gmm-cache', default='.mri_cache',
+                           help='Directory to cache gmm models')
     init_global_args(subparser)
 
 
