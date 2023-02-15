@@ -77,7 +77,7 @@ def compute_fvr_per_target(dataset, subject, sample_size,
         mri_printer.print_info(score_name, sample_size, target_filename, i)
 
         # Turn Z-score into p-values and sort them into 1D array
-        p_values = score_fun(target_masked, mean, std, weights, alpha)
+        p_values = score_fun(target_masked, mean, std, weights)
         p_values.sort()
 
         # Compute the failing-voxels ratio and store it into the global_fv dict
@@ -130,7 +130,7 @@ def compute_k_fold_fvr(args, reference_dataset, reference_subject,
 
         if args.gmm:
             print("Use GMM model")
-            gmm,_ = mri_gmm.gmm_fit(train_t1_masked)
+            gmm, _ = mri_gmm.gmm_fit(train_t1_masked)
             mean = gmm.means_
             std = np.sqrt(gmm.covariances_)
             weights = gmm.weights_
@@ -201,7 +201,6 @@ def compute_all_include_fvr(args, methods):
     return fvr
 
 
-
 def compute_all_exclude_fvr(args, methods):
     # normality_mask_path = mri_normality.run_test_normality(args)
     reference_t1s, reference_masks = mri_image.get_reference(
@@ -217,16 +216,16 @@ def compute_all_exclude_fvr(args, methods):
     alpha = 1 - args.confidence
 
     fvr = compute_k_fold_fvr(args,
-        reference_dataset=args.reference_dataset,
-        reference_subject=args.reference_subject,
-        reference_T1=reference_t1s,
-        reference_mask=reference_masks,
-        mask_combination=args.mask_combination,
-        k=reference_sample_size,
-        fwh=args.smooth_kernel,
-        alpha=alpha,
-        methods=methods,
-        score=args.score)
+                             reference_dataset=args.reference_dataset,
+                             reference_subject=args.reference_subject,
+                             reference_T1=reference_t1s,
+                             reference_mask=reference_masks,
+                             mask_combination=args.mask_combination,
+                             k=reference_sample_size,
+                             fwh=args.smooth_kernel,
+                             alpha=alpha,
+                             methods=methods,
+                             score=args.score)
 
     return fvr
 
@@ -297,15 +296,15 @@ def compute_k_fold(args, methods):
     alpha = 1 - args.confidence
 
     fvr = compute_k_fold_fvr(args,
-        dataset=args.reference_dataset,
-        subject=args.reference_subject,
-        sample_size=reference_sample_size,
-        k=args.k_fold_rounds,
-        reference=reference,
-        supermask=supermask,
-        alpha=alpha,
-        nb_voxels_in_mask=nb_voxels_in_mask,
-        methods=methods)
+                             dataset=args.reference_dataset,
+                             subject=args.reference_subject,
+                             sample_size=reference_sample_size,
+                             k=args.k_fold_rounds,
+                             reference=reference,
+                             supermask=supermask,
+                             alpha=alpha,
+                             nb_voxels_in_mask=nb_voxels_in_mask,
+                             methods=methods)
 
     return fvr
 
