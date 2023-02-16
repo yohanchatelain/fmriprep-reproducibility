@@ -23,7 +23,6 @@ def parse_file(filename):
             if line.startswith('non-normal voxel ratio'):
                 return parse_line(line)
     print(filename)
-#    raise Exception('No #voxels line found')
 
 
 # non-normal-rr-ds001748_sub-adult15_7_0.100.log
