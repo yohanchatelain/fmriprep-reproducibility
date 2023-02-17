@@ -269,11 +269,11 @@ def compute_one_fvr(args, methods):
         sample_size=reference_sample_size,
         targets_T1=target_t1s,
         supermask=supermask,
-        means=mean,
-        stds=std,
+        mean=mean,
+        std=std,
         weights=weights,
-        fwh=args.smooth_kernel,
         alpha=alpha,
+        fwh=args.smooth_kernel,
         methods=methods,
         score=args.score)
 
