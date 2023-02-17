@@ -88,7 +88,7 @@ def init_global_args(parser):
                         required=True, help="Dataset reference")
     parser.add_argument("--reference-subject", action="store",
                         required=True, help="Subject reference")
-    parser.add_argument('--smooth-kernel', action='store',
+    parser.add_argument(['--smooth-kernel', '--fwh', '--fwhm'], action='store',
                         type=float, default=0.0,
                         help='Size of the kernel smoothing')
     parser.add_argument('--mask-combination', action='store', type=str,
