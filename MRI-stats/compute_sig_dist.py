@@ -20,7 +20,7 @@ def compute_k_fold_sig(args, reference_T1, reference_mask):
 
     kfold = KFold(len(reference_T1))
 
-    t1_masked, _ = mri_image.mask_t1(
+    t1_masked, supermask = mri_image.mask_t1(
         reference_T1, reference_mask, mask_comb, fwh)
     global_reference = np.mean(t1_masked, axis=0)
     global_sig = compute_sig(t1_masked, global_reference)
@@ -29,10 +29,8 @@ def compute_k_fold_sig(args, reference_T1, reference_mask):
 
     for i, _ in kfold.split(reference_T1):
         t1_test = reference_T1[i]
-        mask_test = reference_mask[i]
 
-        t1_masked, supermask = mri_image.mask_t1(
-            t1_test, mask_test, mask_comb, fwh)
+        t1_masked = mri_image.get_masked_t1(t1_test, supermask, fwh)
 
         reference = np.mean(t1_masked, axis=0)
         sig = compute_sig(t1_masked, reference)
