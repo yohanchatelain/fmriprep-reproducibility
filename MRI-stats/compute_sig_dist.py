@@ -28,15 +28,13 @@ def compute_k_fold_sig(args, reference_T1, reference_mask):
     hists = []
 
     for i, _ in kfold.split(reference_T1):
-        t1_test = reference_T1[i]
+        t1_test = t1_masked[i]
 
-        t1_masked = mri_image.get_masked_t1(t1_test, supermask, fwh)
-
-        reference = np.mean(t1_masked, axis=0)
-        sig = compute_sig(t1_masked, reference)
+        reference = np.mean(t1_test, axis=0)
+        sig = compute_sig(t1_test, reference)
 
         diff = np.abs(global_sig - sig)
-        hist = np.histogram(diff, nbins=range(13))
+        hist = np.histogram(diff, bins=range(13))
         hists.append(hist)
 
     return hists
