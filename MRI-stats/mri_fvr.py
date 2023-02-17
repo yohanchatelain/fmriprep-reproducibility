@@ -267,7 +267,7 @@ def compute_one_fvr(args, methods):
         dataset=args.reference_dataset,
         subject=args.reference_subject,
         sample_size=reference_sample_size,
-        targets=target_t1s,
+        targets_T1=target_t1s,
         supermask=supermask,
         means=mean,
         stds=std,
