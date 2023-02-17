@@ -46,7 +46,7 @@ def get_filename(args):
                               args.reference_dataset,
                               args.reference_subject,
                               args.template,
-                              args.fwh]))
+                              args.smooth_kernel]))
 
 
 def compute_sig_loo(args):

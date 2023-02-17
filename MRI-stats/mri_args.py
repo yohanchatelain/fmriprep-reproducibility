@@ -31,7 +31,7 @@ def init_global_args(parser):
                         type=int, default=5,
                         help='Number of K-fold rounds to perform')
 
-    parser.add_argument('--smooth-kernel', action='store',
+    parser.add_argument(['--smooth-kernel', '--fwh', '--fwhm'], action='store',
                         type=float, default=0.0,
                         help='Size of the kernel smoothing')
     parser.add_argument('--mask-combination', action='store', type=str,
@@ -47,6 +47,7 @@ def init_global_args(parser):
     parser.add_argument(
         '--score', choices=['z-score', 't-score'], default='z-score', help='Score to use')
     parser.add_argument('--gmm', action='store_true', help="Use GMM model")
+
 
 def init_module_all_include(parser):
     msg = """
