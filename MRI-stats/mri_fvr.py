@@ -202,7 +202,6 @@ def compute_all_include_fvr(args, methods):
 
 
 def compute_all_exclude_fvr(args, methods):
-    # normality_mask_path = mri_normality.run_test_normality(args)
     reference_t1s, reference_masks = mri_image.get_reference(
         prefix=args.reference_prefix,
         subject=args.reference_subject,
@@ -231,48 +230,52 @@ def compute_all_exclude_fvr(args, methods):
 
 
 def compute_one_fvr(args, methods):
-    normality_mask_path = mri_normality.run_test_normality(args)
-    reference, supermask = mri_image.get_reference(
-        reference_prefix=args.reference_prefix,
-        reference_subject=args.reference_subject,
-        reference_dataset=args.reference_dataset,
+    reference_t1s, reference_masks = mri_image.get_reference(
+        prefix=args.reference_prefix,
+        subject=args.reference_subject,
+        dataset=args.reference_dataset,
         template=args.template,
-        data_type=args.data_type,
-        mask_combination=args.mask_combination,
-        normalize=args.normalize,
-        smooth_kernel=args.smooth_kernel,
-        normality_mask=normality_mask_path)
+        data_type=args.data_type)
 
-    reference_sample_size = len(reference)
-    nb_voxels_in_mask = np.count_nonzero(supermask)
+    reference_sample_size = len(reference_t1s)
+
+    train_t1_masked, supermask = mri_image.mask_t1(
+        reference_t1s, reference_masks, args.mask_combination, args.smooth_kernel)
+
+    target_t1s, _ = mri_image.get_reference(
+        prefix=args.target_prefix,
+        subject=args.target_subject,
+        dataset=args.target_dataset,
+        template=args.template,
+        data_type=args.data_type)
+
+    if args.gmm:
+        print("Use GMM model")
+        gmm, _ = mri_gmm.gmm_fit(train_t1_masked)
+        mean = gmm.means_
+        std = np.sqrt(gmm.covariances_)
+        weights = gmm.weights_
+    else:
+        mean = np.mean(train_t1_masked, axis=0)
+        std = np.std(train_t1_masked, axis=0)
+        weights = 1
+
     print(f'Sample size: {reference_sample_size}')
-    mean = mri_stats.get_mean_reference(reference)
-    std = mri_stats.get_std_reference(reference)
-    dof = reference_sample_size - 1
     alpha = 1 - args.confidence
-
-    target = mri_image.get_target(
-        target_prefix=args.target_prefix,
-        target_subject=args.target_subject,
-        target_dataset=args.target_dataset,
-        template=args.template,
-        data_type=args.data_type,
-        normalize=args.normalize,
-        normality_mask=normality_mask_path)
 
     fvr = compute_fvr_per_target(
         dataset=args.reference_dataset,
         subject=args.reference_subject,
         sample_size=reference_sample_size,
-        targets=target,
+        targets=target_t1s,
         supermask=supermask,
-        means=[mean],
-        stds=[std],
-        N=nb_voxels_in_mask,
-        fuzzy_sample_size=reference_sample_size,
-        dof=dof,
+        means=mean,
+        stds=std,
+        weights=weights,
+        fwh=args.smooth_kernel,
         alpha=alpha,
-        methods=methods)
+        methods=methods,
+        score=args.score)
 
     return fvr
 
