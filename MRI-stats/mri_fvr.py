@@ -5,6 +5,7 @@ import nibabel
 import numpy as np
 from sklearn.model_selection import KFold
 
+import mri_multiple_testing as mri_mt
 import mri_image
 import mri_normality
 import mri_printer
@@ -13,9 +14,7 @@ import mri_gmm
 from mri_collect import stats_collect
 
 
-def compute_fvr(reference_dataset, reference_subject, reference_sample_size,
-                target, p_values, alpha, methods, fwh,
-                k=None, k_round=None):
+def compute_fvr(methods, target, *args, **info):
     '''
     Compute the failing voxel ratio for the given target image
     for each method in methods
@@ -30,31 +29,96 @@ def compute_fvr(reference_dataset, reference_subject, reference_sample_size,
         if mri_printer.verbose:
             print_sep()
 
-        fp = method(target, p_values, alpha)
-        stats_collect.append(dataset=reference_dataset,
-                             subject=reference_subject,
-                             confidence=1 - alpha,
-                             sample_size=reference_sample_size,
-                             target=target.get_filename(),
-                             fwh=fwh,
-                             fvr=fp,
-                             method=method.__name__,
-                             k_fold=k,
-                             k_round=k_round)
+        fp = method(target, *args)
+        stats_collect(**info,
+                      target=target.get_filename(),
+                      fvr=fp,
+                      method=method.__name__)
+        # stats_collect.append(dataset=reference_dataset,
+        #                      subject=reference_subject,
+        #                      confidence=1 - alpha,
+        #                      sample_size=reference_sample_size,
+        #                      target=target.get_filename(),
+        #                      fwh=fwh,
+        #                      fvr=fp,
+        #                      method=method.__name__,
+        #                      k_fold=k,
+        #                      k_round=k_round)
         global_fp[method.__name__] = fp
     print_sep()
     return global_fp
 
 
-def compute_fvr_per_target(dataset, subject, sample_size,
-                           targets_T1, supermask,
-                           mean, std, weights,
-                           alpha, fwh, score, methods, k=None, k_round=None):
+def compute_pvalues_stats(args, ith_target, target_T1, supermask,
+                          mean, std, weights,  methods, **info):
+
+    alpha = 1 - args.confidence
+    score = args.score
+    fwh = args.smooth_kernel
+    sample_size = info['sample_size']
+    info['confidence'] = args.confidence
+
+    # For each target image, compute the Z-score associated
+    target_filename = target_T1.get_filename()
+    target_masked = mri_image.get_masked_t1(target_T1, supermask, fwh)
+
+    score_name, score_fun = mri_stats.get_score(score=score)
+    mri_printer.print_info(score_name, sample_size,
+                           target_filename, ith_target)
+
+    # Turn Z-score into p-values and sort them into 1D array
+    p_values = score_fun(target_masked, mean, std, weights)
+    p_values.sort()
+
+    # Compute the failing-voxels ratio and store it into the global_fv dict
+    fvr = compute_fvr(methods,
+                      target_T1,
+                      p_values,
+                      alpha,
+                      **info)
+
+    return fvr
+
+
+def compute_sig_stats(args,
+                      ith_target,
+                      references_T1,
+                      target_T1,
+                      supermask,
+                      sig,
+                      methods, **info):
+
+    sig_error = significantdigits.Error.Relative
+    sig_method = significantdigits.Method.General
+    alpha = 1 - args.confidence
+    fwh = args.smooth_kernel
+    sample_size = info['sample_size']
+    ref_sig = sig
+
+    target_filename = target_T1.get_filename()
+    target_masked = mri_image.get_masked_t1(target_T1, supermask, fwh)
+
+    mri_printer.print_info('Sigbit', sample_size,
+                           target_filename, ith_target)
+
+    test_sig = significantdigits.significant_digits(references_T1,
+                                                    reference=target_masked,
+                                                    axis=0,
+                                                    error=sig_error,
+                                                    method=sig_method)
+
+    fvr = compute_fvr(methods, target_T1, ref_sig, test_sig, alpha, **info)
+
+    return fvr
+
+
+def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
+                           methods, nb_round=None, kth_round=None):
     '''
     Compute the failing-voxels ratio (FVR) for each target image in targets for the given methods.
     Args:
         @targets: list of target image encoded into Nifti1Image object
-        @supermask: the intersection of the target brain masks into a numpy array
+        @supermask: the union of the target brain masks into a numpy array
         @mean: the mean of the reference brain images set into a numpy array
         @N:The number of voxels True inside the supermask
         @fuzzy_sample_size: The fuzzy sample size, equals to the reference set size
@@ -65,45 +129,69 @@ def compute_fvr_per_target(dataset, subject, sample_size,
         A dictionnary that contains for each target the FVR for each method used.
     '''
 
-    fvr_per_target = {}
+    dataset = args.reference_dataset
+    subject = args.reference_subject
+    confidence = args.confidence
+    sample_size = len(references_T1)
+    fwh = args.smooth_kernel
 
+    info = dict(dataset=dataset,
+                subject=subject,
+                sample_size=sample_size,
+                confidence=confidence,
+                fwh=fwh,
+                kth_round=kth_round,
+                nb_round=nb_round)
+
+    if args.gmm:
+        print("Use GMM model")
+        gmm, _ = mri_gmm.gmm_fit(references_T1)
+        mean = gmm.means_
+        std = np.sqrt(gmm.covariances_)
+        weights = gmm.weights_
+    elif args.compare_significant_digits:
+        mean = np.mean(references_T1, axis=0)
+        sig_error = significantdigits.Error.Relative
+        sig_method = significantdigits.Method.General
+        sig = significantdigits.significant_digits(references_T1,
+                                                   reference=mean,
+                                                   axis=0,
+                                                   error=sig_error,
+                                                   method=sig_method)
+    else:
+        mean = np.mean(references_T1, axis=0)
+        std = np.std(references_T1, axis=0)
+        weights = 1
+
+    fvr_per_target = {}
     for i, target_T1 in enumerate(targets_T1):
 
-        # For each target image, compute the Z-score associated
-        target_filename = target_T1.get_filename()
-        target_masked = mri_image.get_masked_t1(target_T1, supermask, fwh)
+        if args.compare_significant_digits:
 
-        score_name, score_fun = mri_stats.get_score(score=score)
-        mri_printer.print_info(score_name, sample_size, target_filename, i)
+            fvr = compute_sig_stats(args,
+                                    ith_target=i,
+                                    references_T1=references_T1,
+                                    target_T1=target_T1,
+                                    supermask=supermask,
+                                    sig=sig,
+                                    methods=[mri_mt.pce_sig])
+        else:
+            fvr = compute_pvalues_stats(args,
+                                        ith_target=i,
+                                        target_T1=target_T1,
+                                        supermask=supermask,
+                                        mean=mean,
+                                        std=std,
+                                        weights=weights,
+                                        methods=methods,
+                                        **info)
 
-        # Turn Z-score into p-values and sort them into 1D array
-        p_values = score_fun(target_masked, mean, std, weights)
-        p_values.sort()
-
-        # Compute the failing-voxels ratio and store it into the global_fv dict
-        fvr = compute_fvr(reference_dataset=dataset,
-                          reference_subject=subject,
-                          reference_sample_size=sample_size,
-                          target=target_T1,
-                          p_values=p_values,
-                          alpha=alpha,
-                          methods=methods,
-                          fwh=fwh,
-                          k=k, k_round=k_round)
-
-        fvr_per_target[target_T1.get_filename()] = (fvr, p_values)
-
-        # Dump masked uncorrected map
-        # mri_image.dump_failing_voxels(
-        #     target_T1, target_mask, alpha, p_values, fwh)
+        fvr_per_target[target_T1.get_filename()] = (fvr, None)
 
     return fvr_per_target
 
 
-def compute_k_fold_fvr(args, reference_dataset, reference_subject,
-                       reference_T1, reference_mask,
-                       mask_combination, fwh,
-                       k, alpha, methods, score):
+def compute_k_fold_fvr(args, reference_T1, reference_mask, nb_rounds, methods):
     '''
     Compute the FVR by splitting the reference set in two training/testing sets.
     Do this k time by shuffling the training/testing sets.
@@ -113,47 +201,33 @@ def compute_k_fold_fvr(args, reference_dataset, reference_subject,
     Return a list of FVR for each round
     '''
 
-    msg = f'{k}-fold failing-voxels count'
+    mask_combination = args.mask_combination
+    fwh = args.smooth_kernel
+
+    msg = f'{nb_rounds}-fold failing-voxels count'
     mri_printer.print_sep1(f'{msg:^40}')
 
-    kfold = KFold(k)
+    kfold = KFold(nb_rounds)
     fvr_list = []
 
     def compute_k_fold_round(i, train_id, test_id):
         round_msg = f'Round {i}'
         mri_printer.print_sep2(f'{round_msg:^40}')
+
         train_t1 = reference_T1[train_id]
-        train_sample_size = len(train_t1)
         train_mask = reference_mask[train_id]
         train_t1_masked, supermask = mri_image.mask_t1(
             train_t1, train_mask, mask_combination, fwh)
 
-        if args.gmm:
-            print("Use GMM model")
-            gmm, _ = mri_gmm.gmm_fit(train_t1_masked)
-            mean = gmm.means_
-            std = np.sqrt(gmm.covariances_)
-            weights = gmm.weights_
-        else:
-            mean = np.mean(train_t1_masked, axis=0)
-            std = np.std(train_t1_masked, axis=0)
-            weights = 1
-
         test = reference_T1[test_id]
-        fvr = compute_fvr_per_target(dataset=reference_dataset,
-                                     subject=reference_subject,
-                                     sample_size=train_sample_size,
+
+        fvr = compute_fvr_per_target(args,
+                                     references_T1=train_t1_masked,
                                      targets_T1=test,
                                      supermask=supermask,
-                                     mean=mean,
-                                     std=std,
-                                     weights=weights,
-                                     fwh=fwh,
-                                     alpha=alpha,
                                      methods=methods,
-                                     score=score,
-                                     k=k,
-                                     k_round=i)
+                                     nb_rounds=nb_rounds,
+                                     kth_round=i)
         return fvr
 
     fvr_list = [compute_k_fold_round(i, train_id, test_id)
@@ -214,17 +288,11 @@ def compute_all_exclude_fvr(args, methods):
     print(f'Sample size: {reference_sample_size}')
     alpha = 1 - args.confidence
 
-    fvr = compute_k_fold_fvr(args,
-                             reference_dataset=args.reference_dataset,
-                             reference_subject=args.reference_subject,
-                             reference_T1=reference_t1s,
+    fvr = compute_k_fold_fvr(args, reference_T1=reference_t1s,
                              reference_mask=reference_masks,
-                             mask_combination=args.mask_combination,
                              k=reference_sample_size,
-                             fwh=args.smooth_kernel,
                              alpha=alpha,
-                             methods=methods,
-                             score=args.score)
+                             methods=methods)
 
     return fvr
 
@@ -406,7 +474,7 @@ def compute_stats(args):
                          str(int(args.smooth_kernel))])
 
     def save(x, name):
-        print(f'Unmask {name}')
+        print(f'Unmask {filename}')
         x_img = nilearn.masking.unmask(x, supermask)
         print(f'Save NumPy {name}')
         np.save(f'{filename}_{name}', x)

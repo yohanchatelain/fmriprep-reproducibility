@@ -1,5 +1,4 @@
 import pickle
-import os
 
 
 class Statistic:
@@ -15,7 +14,7 @@ class Statistic:
             self._name = name
 
     def append(self, dataset, subject, confidence, sample_size,
-               target, fvr, method, fwh, k_fold=None, k_round=None):
+               target, fvr, method, fwh, nb_round=None, kth_round=None):
         _row = dict(dataset=dataset,
                     subject=subject,
                     confidence=confidence,
@@ -24,8 +23,8 @@ class Statistic:
                     method=method,
                     fwh=fwh,
                     fvr=fvr,
-                    k_fold=k_fold,
-                    k_round=k_round)
+                    nb_round=nb_round,
+                    kth_round=kth_round)
         self._data.append(_row)
 
     def dump(self):

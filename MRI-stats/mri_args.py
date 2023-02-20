@@ -47,6 +47,8 @@ def init_global_args(parser):
     parser.add_argument(
         '--score', choices=['z-score', 't-score'], default='z-score', help='Score to use')
     parser.add_argument('--gmm', action='store_true', help="Use GMM model")
+    parser.add_argument('--compare-significant-digits',
+                        action='store_true', help='Compare significant digits maps')
 
 
 def init_module_all_include(parser):

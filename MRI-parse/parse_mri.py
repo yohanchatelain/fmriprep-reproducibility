@@ -122,8 +122,10 @@ def get_mct(df, alpha, alternative='two-sided'):
     group = df.groupby(indexes).agg([np.sum, 'count']).drop(drop, axis=1)
 
     keys = dict(map(lambda t: t[::-1], enumerate(group.index.names)))
-    pvalues = group.apply(lambda t: binom(
-        int(t.fvr['sum']), t.fvr['count'], 1 - t.name[keys['confidence']]), axis=1, result_type='expand')
+    pvalues = group.apply(lambda t: binom(int(t.fvr['sum']),
+                                          t.fvr['count'], alpha),
+                          #   1 - t.name[keys['confidence']]),
+                          axis=1, result_type='expand')
 
     return pvalues > alpha
 
@@ -305,8 +307,11 @@ def plot_mct(mcts):
             mct_x_labels = [t for t in mct_2d_sorted.sort_index(
                 axis=1).columns.values]
             mct_y_labels = [
-                t[0] for t in mct_2d_sorted.sort_index(axis=1).index.values]
+                float(t[0]) for t in mct_2d_sorted.sort_index(axis=1, ascending=True).index.values]
             p = mct_2d_sorted.replace({False: 0, True: 1, np.nan: 2})
+
+            # print(p.sort_values(by=["confidence"],
+            #       inplace=True, ascending=False))
 
             im = px.imshow(p,
                            color_continuous_scale=colors,

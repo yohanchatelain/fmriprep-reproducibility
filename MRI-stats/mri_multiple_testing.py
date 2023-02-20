@@ -27,6 +27,26 @@ def pce(target, p_values, alpha):
     return ratio
 
 
+def pce_sig(target, ref, test, alpha):
+    '''
+    Compute the Per-Comparison Error rate (uncorrected) for significant bits
+    '''
+    name = 'PCE-sig'
+    N = ref.size
+    fp = test < ref
+    false_positive = np.ma.sum(fp)
+    ratio = false_positive/N
+
+    if mri_printer.verbose:
+        mri_printer.print_name_method('Per-Comparison Error (Uncorrected)')
+        print(f'- Card(FP)              = {false_positive}')
+        print(f'- Card(Voxels)          = {N}')
+        print(f'- Card(FP)/Card(Voxels) = {ratio:.2e} [{ratio*100:f}%]')
+    mri_printer.print_result(target, ratio, alpha, name)
+
+    return ratio
+
+
 def mct(target, p_values, alpha, method, short_name, long_name):
     '''
     Generic method for compute Multiple Comparison Tests rate.
