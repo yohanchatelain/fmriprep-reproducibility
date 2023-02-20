@@ -2,6 +2,13 @@
 
 module load python/3.9
 
+MRI_STATS_PATH=
+
+if [[ ${MRI_STATS_PATH} == "" ]]; then
+    echo "MRI_STATS_PATH not set"
+    exit 1
+fi
+
 SUCCESS_STATUS="success"
 FAIL_STATUS="fail"
 
@@ -43,7 +50,7 @@ function run_test() {
     PARALLEL=parallel.${RANDOM}
     for confidence in ${confidences[@]}; do
         OUTPUT="${TEST}_${confidence}_reference_${REFERENCE_NAME}_${REFERENCE_DATASET}_${REFERENCE_SUBJECT}_target_${TARGET_NAME}_${TARGET_DATASET}_${TARGET_SUBJECT}_fwh_${FWH}"
-        echo "python3 ~/MRI-stats/__main__.py ${TEST} \
+        echo "python3 ${MRI_STATS_PATH}/MRI-stats/__main__.py ${TEST} \
             --confidence ${confidence} \
             --template MNI152NLin2009cAsym --data-type anat \
             --reference-prefix ${REFERENCE_PREFIX} --reference-dataset ${REFERENCE_DATASET} --reference-subject ${REFERENCE_SUBJECT} \
@@ -55,7 +62,7 @@ function run_test() {
     parallel -j 5 <$PARALLEL
 
     for confidence in ${confidences[@]}; do
-        python3 ~/MRI-stats/mri_check_status.py --status=${STATUS} --filename="${MRI_PICKLE_DIR}/${OUTPUT}.pkl"
+        python3 ${MRI_STATS_PATH}/MRI-stats/mri_check_status.py --status=${STATUS} --filename="${MRI_PICKLE_DIR}/${OUTPUT}.pkl"
     done
 }
 
@@ -127,37 +134,33 @@ function run_all_subject() {
     done <inputs.txt
 }
 
-function main() {
-    TEST=$1
-    REFERENCE_PREFIX=$2
-    REFERENCE_NAME=$3
-    TARGET_PREFIX=$4
-    TARGET_NAME=$5
-    FWH=${SLURM_ARRAY_TASK_ID}
-    MASK=$6
-    DATASET=$7
-    SUBJECT=$8
+TEST=$1
+REFERENCE_PREFIX=$2
+REFERENCE_NAME=$3
+TARGET_PREFIX=$4
+TARGET_NAME=$5
+FWH=${SLURM_ARRAY_TASK_ID}
+MASK=$6
+DATASET=$7
+SUBJECT=$8
 
-    echo "### ARGS ###"
-    echo "TEST=${TEST}"
-    echo "REFERENCE_PREFIX=${REFERENCE_PREFIX}"
-    echo "REFERENCE_NAME=${REFERENCE_NAME}"
-    echo "TARGET_PREFIX=${TARGET_PREFIX}"
-    echo "TARGET_NAME=${TARGET_NAME}"
-    echo "FWH=${FWH}"
-    echo "MASK=${MASK}"
+echo "### ARGS ###"
+echo "TEST=${TEST}"
+echo "REFERENCE_PREFIX=${REFERENCE_PREFIX}"
+echo "REFERENCE_NAME=${REFERENCE_NAME}"
+echo "TARGET_PREFIX=${TARGET_PREFIX}"
+echo "TARGET_NAME=${TARGET_NAME}"
+echo "FWH=${FWH}"
+echo "MASK=${MASK}"
 
-    if [ -z $DATASET ]; then
-        run_all_subject
-    else
-        echo "DATASET=${DATASET}"
-        echo "SUBJECT=${SUBJECT}"
-        REFERENCE_DATASET=${DATASET}
-        REFERENCE_SUBJECT=${SUBJECT}
-        TARGET_DATASET=${DATASET}
-        TARGET_SUBJECT=${SUBJECT}
-        run_expect_pass $TEST $REFERENCE_PREFIX $REFERENCE_DATASET $REFERENCE_SUBJECT $REFERENCE_NAME $TARGET_PREFIX $TARGET_DATASET $TARGET_SUBJECT $TARGET_NAME $FWH $MASK
-    fi
-}
-
-main
+if [ -z $DATASET ]; then
+    run_all_subject
+else
+    echo "DATASET=${DATASET}"
+    echo "SUBJECT=${SUBJECT}"
+    REFERENCE_DATASET=${DATASET}
+    REFERENCE_SUBJECT=${SUBJECT}
+    TARGET_DATASET=${DATASET}
+    TARGET_SUBJECT=${SUBJECT}
+    run_expect_pass $TEST $REFERENCE_PREFIX $REFERENCE_DATASET $REFERENCE_SUBJECT $REFERENCE_NAME $TARGET_PREFIX $TARGET_DATASET $TARGET_SUBJECT $TARGET_NAME $FWH $MASK
+fi
