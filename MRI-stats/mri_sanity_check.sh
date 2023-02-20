@@ -133,25 +133,25 @@ function main() {
     REFERENCE_NAME=$3
     TARGET_PREFIX=$4
     TARGET_NAME=$5
-    FWH=$6
-    MASK=$7
-    DATASET=$8
-    SUBJECT=$9
+    FWH=${SLURM_ARRAY_TASK_ID}
+    MASK=$6
+    DATASET=$7
+    SUBJECT=$8
 
     echo "### ARGS ###"
-    echo "TEST=$1"
-    echo "REFERENCE_PREFIX=$2"
-    echo "REFERENCE_NAME=$3"
-    echo "TARGET_PREFIX=$4"
-    echo "TARGET_NAME=$5"
-    echo "FWH=$6"
-    echo "MASK=$7"
+    echo "TEST=${TEST}"
+    echo "REFERENCE_PREFIX=${REFERENCE_PREFIX}"
+    echo "REFERENCE_NAME=${REFERENCE_NAME}"
+    echo "TARGET_PREFIX=${TARGET_PREFIX}"
+    echo "TARGET_NAME=${TARGET_NAME}"
+    echo "FWH=${FWH}"
+    echo "MASK=${MASK}"
 
     if [ -z $DATASET ]; then
         run_all_subject
     else
-        echo "DATASET=$8"
-        echo "SUBJECT=$9"
+        echo "DATASET=${DATASET}"
+        echo "SUBJECT=${SUBJECT}"
         REFERENCE_DATASET=${DATASET}
         REFERENCE_SUBJECT=${SUBJECT}
         TARGET_DATASET=${DATASET}
