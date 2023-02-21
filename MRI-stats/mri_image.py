@@ -153,7 +153,7 @@ def get_reference(prefix, subject, dataset, template, data_type, normalize):
     paths = get_paths(prefix, dataset, subject, data_type)
 
     images = get_images(paths, preproc_re, normalize)
-    masks = get_masks(paths, brain_mask_re, normalize)
+    masks = get_masks(paths, brain_mask_re)
 
     return images, masks
 
