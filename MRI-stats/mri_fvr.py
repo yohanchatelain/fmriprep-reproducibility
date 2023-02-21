@@ -144,7 +144,8 @@ def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
                 nb_round=nb_round)
 
     if args.gmm:
-        print("Use GMM model")
+        if args.verbose:
+            print("Use GMM model")
         gmm, _ = mri_gmm.gmm_fit(references_T1)
         mean = gmm.means_
         std = np.sqrt(gmm.covariances_)
@@ -176,7 +177,8 @@ def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
                                     target_T1=target_T1,
                                     supermask=supermask,
                                     sig=sig,
-                                    methods=[mri_mt.pce_sig])
+                                    methods=[mri_mt.pce_sig],
+                                    **info)
         else:
             fvr = compute_pvalues_stats(args,
                                         ith_target=i,

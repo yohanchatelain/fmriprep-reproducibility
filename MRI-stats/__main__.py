@@ -82,12 +82,12 @@ def main():
     if args.verbose:
         mri_printer.enable_verbose_mode()
 
-    try:
-        tests[args.mri_test](args)
-        stats_collect.set_name(args.output)
-        stats_collect.dump()
-    except KeyError:
+    if args.mri_test not in test:
         parser.print_help()
+
+    tests[args.mri_test](args)
+    stats_collect.set_name(args.output)
+    stats_collect.dump()
 
 
 main()
