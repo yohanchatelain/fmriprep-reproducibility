@@ -30,10 +30,10 @@ def compute_fvr(methods, target, *args, **info):
             print_sep()
 
         fp = method(target, *args)
-        stats_collect(**info,
-                      target=target.get_filename(),
-                      fvr=fp,
-                      method=method.__name__)
+        stats_collect.append(**info,
+                             target=target.get_filename(),
+                             fvr=fp,
+                             method=method.__name__)
         # stats_collect.append(dataset=reference_dataset,
         #                      subject=reference_subject,
         #                      confidence=1 - alpha,
