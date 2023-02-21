@@ -38,7 +38,7 @@ def init_global_args(parser):
                         choices=['union', 'intersection', 'map'],
                         default='union',
                         help='Method to combine brain mask (map applies each brain mask to the image repetition)')
-    parser.add_argument('--normalize', action='store', default=0, type=int,
+    parser.add_argument('--normalize', action='store_true',
                         help='Normalize the T1w to have [0,1] intensities')
     parser.add_argument('--output', action='store',
                         default='output.pkl', help='Output filename')
