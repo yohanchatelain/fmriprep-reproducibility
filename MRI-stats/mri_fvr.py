@@ -288,13 +288,11 @@ def compute_all_exclude_fvr(args, methods):
     reference_sample_size = len(reference_t1s)
 
     print(f'Sample size: {reference_sample_size}')
-    alpha = 1 - args.confidence
 
     fvr = compute_k_fold_fvr(args,
                              reference_T1=reference_t1s,
                              reference_mask=reference_masks,
                              nb_rounds=reference_sample_size,
-                             alpha=alpha,
                              methods=methods)
 
     return fvr
