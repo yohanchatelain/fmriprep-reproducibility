@@ -82,7 +82,7 @@ def main():
     if args.verbose:
         mri_printer.enable_verbose_mode()
 
-    if args.mri_test not in test:
+    if args.mri_test not in tests:
         parser.print_help()
 
     tests[args.mri_test](args)
