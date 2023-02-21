@@ -150,6 +150,8 @@ def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
         std = np.sqrt(gmm.covariances_)
         weights = gmm.weights_
     elif args.compare_significant_digits:
+        if args.verbose:
+            print("Compare significant digits")
         mean = np.mean(references_T1, axis=0)
         sig_error = significantdigits.Error.Relative
         sig_method = significantdigits.Method.General
