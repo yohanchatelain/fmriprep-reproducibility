@@ -6,7 +6,6 @@ import glob
 import os
 import nilearn
 import nilearn.masking
-import tqdm
 
 import mri_printer as mrip
 import mri_constants
@@ -74,12 +73,18 @@ def dump_p_values(target, p_value, supermask, alpha):
     dump_stat(target, p_value, supermask, alpha, stat_name='p_value')
 
 
-def get_images(paths, preproc_re):
+def get_images(paths, preproc_re, normalize):
     '''
     Load Nifti1Image from image paths
     '''
-    return np.array([load_image(glob.glob(os.path.join(path, preproc_re))[0])
-                     for path in tqdm.tqdm(paths, unit='img', unit_scale=1, desc='loading T1')])
+    images = []
+    for path in paths:
+        image = load_image(glob.glob(os.path.join(path, preproc_re))[0])
+        if normalize:
+            image = normalize_image(image)
+        images.append(image)
+
+    return np.array(images)
 
 
 def get_masks(paths, brain_mask_re):
@@ -87,7 +92,7 @@ def get_masks(paths, brain_mask_re):
     Load Nifti1Image from mask paths
     '''
     return np.array([load_image(glob.glob(os.path.join(path, brain_mask_re))[0])
-                     for path in tqdm.tqdm(paths, unit='img', unit_scale=1, desc='loading masks')])
+                     for path in paths])
 
 
 def combine_mask(masks_list, operator):
@@ -115,25 +120,11 @@ def smooth_image(image, kernel_smooth):
 
 
 def normalize_image(image):
-    normalized_image = image.get_fdata() / image.get_fdata().max()
-    return nibabel.Nifti1Image(normalized_image, image.affine)
-
-
-def get_reference_image(image, mask, normalize=None, smooth_kernel=None,
-                        normality_mask=None):
-    '''
-    Get one image from the reference sample
-    Apply supermask, normality_mask and normalization if required
-    '''
-
-    if normality_mask is not None:
-        mask = np.ma.logical_and(mask, ~normality_mask)
-    # Always smooth before masking to avoid blurried borders
-    masked_image = normalize_image(image) if normalize else image
-    masked_image = smooth_image(image, smooth_kernel)
-    masked_image = mask_image(masked_image, mask)
-    masked_image.set_filename(image.get_filename())
-    return masked_image
+    voxels = image.get_fdata()
+    normalized_image = voxels / voxels.max()
+    new = nibabel.Nifti1Image(normalized_image, image.affine)
+    new.set_filename(image.get_filename())
+    return new
 
 
 def get_preproc_re(subject, template,
@@ -153,7 +144,7 @@ def get_paths(prefix, dataset, subject, data_type):
     return paths
 
 
-def get_reference(prefix, subject, dataset, template, data_type):
+def get_reference(prefix, subject, dataset, template, data_type, normalize):
     '''
     Returns T1 + mask images for given prefix, subject and dataset
     '''
@@ -161,8 +152,8 @@ def get_reference(prefix, subject, dataset, template, data_type):
     brain_mask_re = get_brainmask_re(subject, template)
     paths = get_paths(prefix, dataset, subject, data_type)
 
-    images = get_images(paths, preproc_re)
-    masks = get_masks(paths, brain_mask_re)
+    images = get_images(paths, preproc_re, normalize)
+    masks = get_masks(paths, brain_mask_re, normalize)
 
     return images, masks
 
@@ -177,8 +168,8 @@ def get_masked_t1(t1, mask, smooth_kernel):
 
 def mask_t1(t1s, masks, mask_combination, smooth_kernel):
     supermask = combine_mask(masks, mask_combination)
-    masked_t1s = tqdm.tqdm(iterable=map(lambda t1: get_masked_t1(
-        t1, supermask, smooth_kernel), t1s), total=len(t1s), unit='img', unit_scale=1, desc='Masking T1')
+    masked_t1s = map(lambda t1: get_masked_t1(
+        t1, supermask, smooth_kernel), t1s)
     return np.stack(masked_t1s), supermask
 
 

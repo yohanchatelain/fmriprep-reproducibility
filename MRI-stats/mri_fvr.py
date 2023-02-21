@@ -247,7 +247,8 @@ def compute_all_include_fvr(args, methods):
         subject=args.reference_subject,
         dataset=args.reference_dataset,
         template=args.template,
-        data_type=args.data_type)
+        data_type=args.data_type,
+        normalize=args.normalize)
 
     reference_sample_size = len(reference_t1s)
 
@@ -281,7 +282,8 @@ def compute_all_exclude_fvr(args, methods):
         subject=args.reference_subject,
         dataset=args.reference_dataset,
         template=args.template,
-        data_type=args.data_type)
+        data_type=args.data_type,
+        normalize=args.normalize)
 
     reference_sample_size = len(reference_t1s)
 
@@ -303,7 +305,8 @@ def compute_one_fvr(args, methods):
         subject=args.reference_subject,
         dataset=args.reference_dataset,
         template=args.template,
-        data_type=args.data_type)
+        data_type=args.data_type,
+        normalize=args.normalize)
 
     reference_sample_size = len(reference_t1s)
 
@@ -315,7 +318,7 @@ def compute_one_fvr(args, methods):
         subject=args.target_subject,
         dataset=args.target_dataset,
         template=args.template,
-        data_type=args.data_type)
+        data_type=args.data_type, normalize=args.normalize)
 
     if args.gmm:
         print("Use GMM model")
@@ -446,7 +449,8 @@ def compute_stats(args):
         subject=args.reference_subject,
         dataset=args.reference_dataset,
         template=args.template,
-        data_type=args.data_type)
+        data_type=args.data_type,
+        normalize=args.normalize)
 
     reference_sample_size = len(reference_t1s)
 
