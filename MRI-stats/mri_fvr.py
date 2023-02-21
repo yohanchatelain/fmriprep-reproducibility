@@ -226,7 +226,7 @@ def compute_k_fold_fvr(args, reference_T1, reference_mask, nb_rounds, methods):
                                      targets_T1=test,
                                      supermask=supermask,
                                      methods=methods,
-                                     nb_rounds=nb_rounds,
+                                     nb_round=nb_rounds,
                                      kth_round=i)
         return fvr
 
