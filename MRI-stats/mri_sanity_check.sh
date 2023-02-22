@@ -1,8 +1,6 @@
 #!/bin/bash
 
-module load python/3.9
-
-MRI_STATS_PATH=
+MRI_STATS_PATH=/mnt/lustre/ychatel/fmriprep-reproducibility/
 
 if [[ ${MRI_STATS_PATH} == "" ]]; then
     echo "MRI_STATS_PATH not set"
