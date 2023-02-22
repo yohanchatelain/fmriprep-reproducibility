@@ -34,16 +34,6 @@ def compute_fvr(methods, target, *args, **info):
                              target=target.get_filename(),
                              fvr=fp,
                              method=method.__name__)
-        # stats_collect.append(dataset=reference_dataset,
-        #                      subject=reference_subject,
-        #                      confidence=1 - alpha,
-        #                      sample_size=reference_sample_size,
-        #                      target=target.get_filename(),
-        #                      fwh=fwh,
-        #                      fvr=fp,
-        #                      method=method.__name__,
-        #                      k_fold=k,
-        #                      k_round=k_round)
         global_fp[method.__name__] = fp
     print_sep()
     return global_fp
@@ -313,43 +303,28 @@ def compute_one_fvr(args, methods):
 
     reference_sample_size = len(reference_t1s)
 
-    train_t1_masked, supermask = mri_image.mask_t1(
-        reference_t1s, reference_masks, args.mask_combination, args.smooth_kernel)
+    train_t1_masked, supermask = mri_image.mask_t1(reference_t1s,
+                                                   reference_masks,
+                                                   args.mask_combination,
+                                                   args.smooth_kernel)
 
     target_t1s, _ = mri_image.get_reference(
         prefix=args.target_prefix,
         subject=args.target_subject,
         dataset=args.target_dataset,
         template=args.template,
-        data_type=args.data_type, normalize=args.normalize)
-
-    if args.gmm:
-        print("Use GMM model")
-        gmm, _ = mri_gmm.gmm_fit(train_t1_masked)
-        mean = gmm.means_
-        std = np.sqrt(gmm.covariances_)
-        weights = gmm.weights_
-    else:
-        mean = np.mean(train_t1_masked, axis=0)
-        std = np.std(train_t1_masked, axis=0)
-        weights = 1
+        data_type=args.data_type,
+        normalize=args.normalize)
 
     print(f'Sample size: {reference_sample_size}')
-    alpha = 1 - args.confidence
 
-    fvr = compute_fvr_per_target(
-        dataset=args.reference_dataset,
-        subject=args.reference_subject,
-        sample_size=reference_sample_size,
-        targets_T1=target_t1s,
-        supermask=supermask,
-        mean=mean,
-        std=std,
-        weights=weights,
-        alpha=alpha,
-        fwh=args.smooth_kernel,
-        methods=methods,
-        score=args.score)
+    fvr = compute_fvr_per_target(args,
+                                 references_T1=train_t1_masked,
+                                 targets_T1=target_t1s,
+                                 supermask=supermask,
+                                 methods=methods,
+                                 nb_round=None,
+                                 kth_round=None)
 
     return fvr
 
