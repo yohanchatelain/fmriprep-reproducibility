@@ -119,6 +119,13 @@ def smooth_image(image, kernel_smooth):
         return image
 
 
+def resample(source, targets):
+    return np.fromiter(
+        map(lambda target:
+            nilearn.image.resample_to_img(source, target),
+            targets))
+
+
 def normalize_image(image):
     voxels = image.get_fdata()
     normalized_image = voxels / voxels.max()

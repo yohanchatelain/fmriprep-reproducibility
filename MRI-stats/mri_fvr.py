@@ -85,6 +85,8 @@ def compute_sig_stats(args,
     sample_size = info['sample_size']
     ref_sig = sig
 
+
+
     target_filename = target_T1.get_filename()
     target_masked = mri_image.get_masked_t1(target_T1, supermask, fwh)
 
@@ -317,6 +319,12 @@ def compute_one_fvr(args, methods):
         normalize=args.normalize)
 
     print(f'Sample size: {reference_sample_size}')
+
+    source_shape = reference_t1s[0]
+    target_shape = target_t1s[0]
+    
+    if source_shape != target_shape:
+        target_t1s = mri_image.resample(reference_t1s[0], target_t1s)
 
     fvr = compute_fvr_per_target(args,
                                  references_T1=train_t1_masked,
