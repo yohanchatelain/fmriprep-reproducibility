@@ -120,10 +120,9 @@ def smooth_image(image, kernel_smooth):
 
 
 def resample(source, targets):
-    return np.fromiter(
-        map(lambda target:
-            nilearn.image.resample_to_img(source, target),
-            targets))
+    return np.ndarray(
+        [nilearn.image.resample_to_img(source, target) for target in targets]
+    )
 
 
 def normalize_image(image):
