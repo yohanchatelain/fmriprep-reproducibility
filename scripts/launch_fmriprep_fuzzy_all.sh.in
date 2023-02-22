@@ -1,0 +1,185 @@
+#!/bin/bash
+
+ROOT_PATH=%%ROOT_PATH%%
+
+read -r -d '' HELP <<EOM
+usage: ./launch_fmriprep_fuzzy_anat_only_all.sh --inputs --random-mode\n
+\t --inputs=file          JSON inputs file\n
+\t --samples=n            Number of samples to run\n
+\t --random-mode=mode     Random mode (rr,rs,rr.rs,ieee)\n
+EOM
+
+DEBUG=true
+SUCCESS=0
+FAILURE=1
+
+function debug() {
+    if $DEBUG; then
+        echo >&2 "[DEBUG] " $*
+    fi
+}
+
+function fail() {
+    echo >&2 $*
+    echo >&2 -e $HELP
+    exit 1
+}
+
+function assert() {
+    if [[ $(($1)) == 0 ]]; then
+        fail "assert($1) failed at line $2"
+    fi
+}
+
+function equal() {
+    assert "$# == 2" $LINENO
+    if [[ $1 == $2 ]]; then
+        debug "${1} and ${2} are equal"
+        return $SUCCESS
+    else
+        return $FAILURE
+    fi
+}
+
+function not_equal() {
+    assert "$# == 2" $LINENO
+    if [[ $1 == $2 ]]; then
+        return $FAILURE
+    else
+        debug "${1} and ${2} are not equal"
+        return $SUCCESS
+    fi
+}
+
+function match_regex() {
+    assert "$# == 2" $LINEO
+    if ! [[ $1 =~ $2 ]]; then
+        return $FAILURE
+    else
+        return $SUCCESS
+    fi
+}
+
+function is_unsigned_integer() {
+    assert "$# == 1" $LINENO
+    local re='^[0-9]+$'
+    return $(match_regex $1 $re)
+}
+
+function is_random_mode() {
+    assert "$# == 1" $LINENO
+    local re='^(rr|rs|rr.rs|ieee)'
+    return $(match_regex "${1}" "${re}")
+}
+
+function parse_arg() {
+    assert "$# == 1" $LINENO
+    local arg
+    IFS="=" read -ra arg <<<"$1"
+    echo "${arg[@]:1}" | tr -d '\r'
+}
+
+function parse_internal_args() {
+    case $1 in
+    --inputs=*)
+        INPUTS=$(realpath $(parse_arg $1))
+        debug "INPUTS=$INPUTS"
+        ;;
+    --random-mode=*)
+        RANDOM_MODE=$(parse_arg $1)
+        debug "RANDOM_MODE=$RANDOM_MODE"
+        if (! is_random_mode ${RANDOM_MODE}); then
+            fail "--random-mode='${RANDOM_MODE}' is not a valid random mode"
+        fi
+        ;;
+    --samples=*)
+        SAMPLES=$(parse_arg $1)
+        debug "SAMPLES=$SAMPLES"
+        if ! (is_unsigned_integer ${SAMPLES}); then
+            fail "--samples=${SAMPLES} is not an integer"
+        fi
+        ;;
+    --help)
+        fail ""
+        ;;
+    *)
+        fail "Unkown arg: ${1}"
+        ;;
+    esac
+}
+
+function parse_args() {
+    argc=$1
+    argv=$2
+
+    echo "${argc} args given"
+
+    if (not_equal $argc 3); then
+        fail "Expected 3 arguments, ${argc} given"
+    fi
+
+    i=1
+    for arg in $argv; do
+        parse_internal_args $arg
+        debug "Arg ${i}: ${arg}"
+        let i++
+    done
+}
+
+function parse_cmd() {
+    cat >parse_cmd.py <<HERE
+import json
+import sys
+import os
+
+def parse_cmd(filename):
+    with open(filename) as fi:
+        return json.load(fi)
+
+
+if '__main__' == __name__:
+    
+    filename = sys.argv[1]
+    print(filename)
+    if not (os.path.isfile(filename)):
+        print(f'Unkown file {filename}')
+        sys.exit(1)
+        
+    cmd = parse_cmd(filename)
+    for dataset, labels in cmd.items():
+        for label in labels.keys():
+            print(f'{dataset} {label}')
+HERE
+    python3 parse_cmd.py $1 >inputs.txt
+    rm -f parse_cmd.py
+}
+
+SBATCH_CMD_ROOT=${ROOT_PATH}/scripts/
+SBATCH_CMD=${SBATCH_CMD_ROOT}/launch_fmriprep_fuzzy.sh
+SBATCH_CLEANER=${SBATCH_CMD_ROOT}/clean_fmriprep_fuzzy.sh
+
+function run() {
+    parse_cmd $INPUTS
+    while read -r DATASET PARTICIPANT; do
+        JOBID=$(sbatch --parsable --job-name="fmriprep_fuzzy_${DATASET}_${PARTICIPANT}_${RANDOM_MODE}" \
+            --array=1-${SAMPLES} \
+            ${SBATCH_CMD} --dataset=$DATASET --participant=$PARTICIPANT --random-mode=$RANDOM_MODE)
+        sbatch --job-name="fmriprep_fuzzy_cleaner_${DATASET}_${PARTICIPANT}_${RANDOM_MODE}" --dependency=afterany:${JOBID} \
+            ${SBATCH_CLEANER} ${JOBID} ${DATASET} ${PARTICIPANT} ${RANDOM_MODE}
+    done <inputs.txt
+}
+
+argc=$#
+debug "${argc} args given"
+if (not_equal $argc 3); then
+    fail "Expected 3 arguments, ${argc} given"
+fi
+
+i=1
+for arg in "$@"; do
+    parse_internal_args $arg
+    debug "Arg ${i}: ${arg}"
+    let i++
+done
+
+run
