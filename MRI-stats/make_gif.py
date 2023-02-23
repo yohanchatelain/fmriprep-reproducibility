@@ -10,13 +10,15 @@ import tempfile
 
 def get_images(args):
     T1s, masks = mri_image.get_reference(
-        args.prefix, args.subject, args.dataset, args.template, args.data_type)
+        args.prefix, args.subject, args.dataset, args.template, args.data_type, args.normalize)
     if args.mask_type in ('union', 'intersection'):
         t1s_masked, supermask = mri_image.mask_t1(
             T1s, masks, args.mask_type, args.fwh)
     else:
         # Do not apply mask
         t1s_masked = nilearn.image.smooth_img(T1s, args.fwh)
+        for t1,t2 in zip(t1s_masked, T1s):
+            t1.set_filename(t2.get_filename())
         supermask = None
     return t1s_masked, supermask
 
@@ -42,7 +44,10 @@ def make_gif(args, t1s, supermask):
             t1 = nilearn.masking.unmask(t1, supermask)
 
         fig_map[i] = t1.get_filename()
-        output_file = os.path.join(tmp, f'{i}.png')
+        print(t1.get_filename())
+        filename = t1.get_filename().replace(os.path.sep, '_').replace('.','_')
+        output_file = os.path.join(tmp,filename + '.png')
+        fig_map[i] = output_file
         output_files.append(output_file)
         nilearn.plotting.plot_anat(t1, cut_coords=(0, 0, 0),
                                    output_file=output_file,
@@ -76,6 +81,7 @@ def parse_args():
     parser.add_argument('--extra', default='')
     parser.add_argument('--output', default='output.gif')
     parser.add_argument('--verbose', action='store_true')
+    parser.add_argument('--normalize', action='store_true')
     args = parser.parse_args()
     return args
 
@@ -85,7 +91,9 @@ def main():
     if args.verbose:
         print(args)
     t1s_masked, supermask = get_images(args)
-    make_gif(args, t1s_masked, supermask)
+    T1s, masks = mri_image.get_reference(
+        args.prefix, args.subject, args.dataset, args.template, args.data_type, args.normalize)
+    make_gif(args, T1s, None)
 
 
 if '__main__' == __name__:
