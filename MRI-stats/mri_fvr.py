@@ -320,12 +320,21 @@ def compute_one_fvr(args, methods):
 
     print(f'Sample size: {reference_sample_size}')
 
-    source_shape = reference_t1s[0]
-    target_shape = target_t1s[0]
+    source_shape = reference_t1s[0].shape
+    target_shape = target_t1s[0].shape
     
     if source_shape != target_shape:
-        target_t1s = mri_image.resample(reference_t1s[0], target_t1s)
+        if args.verbose:
+            print('Resampling target on reference')
+            print('source shape', source_shape)
+            print('target shape', target_shape)
+        target_t1s = mri_image.resample_images(target_t1s, reference_t1s[0])
 
+        print(target_t1s)
+        for t in target_t1s:
+            print('target shape', t.shape)
+
+        
     fvr = compute_fvr_per_target(args,
                                  references_T1=train_t1_masked,
                                  targets_T1=target_t1s,

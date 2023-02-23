@@ -118,10 +118,14 @@ def smooth_image(image, kernel_smooth):
     else:
         return image
 
-
-def resample(source, targets):
+def resample_image(source, target):
     return np.array(
-        [nilearn.image.resample_to_img(source, target) for target in targets]
+        [nilearn.image.resample_to_img(source, target)]
+    )
+
+def resample_images(sources, target):
+    return np.array(
+        [nilearn.image.resample_to_img(source, target) for source in sources]
     )
 
 
@@ -161,6 +165,13 @@ def get_reference(prefix, subject, dataset, template, data_type, normalize):
     images = get_images(paths, preproc_re, normalize)
     masks = get_masks(paths, brain_mask_re)
 
+    if len(images) == 0:
+        print('No T1 images found')
+        raise Exception('T1ImagesEmpty')
+    if len(masks) == 0:
+        print('No brain masks found')
+        raise Exception('BrainMasksEmpty')
+    
     return images, masks
 
 
