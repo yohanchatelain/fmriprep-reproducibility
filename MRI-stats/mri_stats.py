@@ -64,7 +64,7 @@ def p_values_z_score(x, mean, std, weights):
         return 2 * np.min((cdf, 1-cdf), axis=0)
     else:
         z = np.abs((x-mean)/std)
-        return scipy.stats.norm.sf(z)*2
+        return scipy.stats.norm.sf(z) * 2
 
 
 def t_score(x, mean, std=None):

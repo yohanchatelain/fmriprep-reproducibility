@@ -120,7 +120,7 @@ def get_mct(df, alpha, alternative='two-sided'):
         return scipy.stats.binomtest(k=fail, n=trials, p=alpha, alternative=alternative).pvalue
 
     group = df.groupby(indexes).agg([np.sum, 'count']).drop(drop, axis=1)
-
+    print(group)
     keys = dict(map(lambda t: t[::-1], enumerate(group.index.names)))
     pvalues = group.apply(lambda t: binom(int(t.fvr['sum']),
                                           t.fvr['count'], alpha),
@@ -309,14 +309,16 @@ def plot_mct(mcts):
             mct_y_labels = [
                 float(t[0]) for t in mct_2d_sorted.sort_index(axis=1, ascending=True).index.values]
             p = mct_2d_sorted.replace({False: 0, True: 1, np.nan: 2})
+            # print(p)
 
             # print(p.sort_values(by=["confidence"],
             #       inplace=True, ascending=False))
 
             im = px.imshow(p,
                            color_continuous_scale=colors,
-                           x=mct_x_labels, y=mct_y_labels,
-                           origin='lower')
+                           x=mct_x_labels,   y=mct_y_labels,
+                           origin='upper')
+            # print(im)
             mct_fig.add_trace(im.data[0], row=row, col=col)
 
     mct_fig.update_layout(coloraxis=dict(colorscale=colors))
