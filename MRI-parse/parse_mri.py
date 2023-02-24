@@ -76,25 +76,29 @@ def get_test(test, confidence,
     return include
 
 
-def get_pce(df, alpha, alternative='two-sided'):
+def get_pce(args, df, alpha, alternative='two-sided'):
     '''
     Return tests that passes
     '''
+    def ttest(sample, mean):
+        return scipy.stats.ttest_1samp(sample, popmean=mean, alternative=alternative).pvalue
 
     df = df[df['method'] == 'pce']
 
     indexes = ['dataset', 'subject', 'confidence', 'fwh', 'sample_size']
-    drop = ['k_fold', 'k_round', 'target', 'method']
 
-    def ttest(sample, mean):
-        return scipy.stats.ttest_1samp(sample, popmean=mean, alternative=alternative).pvalue
-
-    pvalues = df.groupby(indexes).agg(list).drop(drop, axis=1).apply(
-        lambda t: ttest(t.fvr, 1 - t.name[2]), axis=1, result_type='expand')
+    try:
+        drop = ['k_fold', 'k_round', 'target', 'method']
+        pvalues = df.groupby(indexes).agg(list).drop(drop, axis=1).apply(
+            lambda t: ttest(t.fvr, 1 - t.name[2]), axis=1, result_type='expand')
+    except KeyError:
+        drop = ['kth_round', 'nb_round', 'target', 'method']
+        pvalues = df.groupby(indexes).agg(list).drop(drop, axis=1).apply(
+            lambda t: ttest(t.fvr, 1 - t.name[2]), axis=1, result_type='expand')
     return pvalues > alpha
 
 
-def get_mct(df, alpha, alternative='two-sided'):
+def get_mct(args, df, alpha, alternative='two-sided', ratio=False):
     '''
     Return tests that passes
     '''
@@ -110,111 +114,36 @@ def get_mct(df, alpha, alternative='two-sided'):
     df = df[df['method'] != 'fwe_sidak']
     df = df[df['method'] != 'fwe_holm_sidak']
     df = df[df['method'] != 'fwe_holm_bonferroni']
-    df = df[df['method'] != 'fdr_BY']
+    # df = df[df['method'] != 'fdr_BY']
+    df = df[df['method'] != 'fwe_bonferroni']
 
     indexes = ['dataset', 'subject', 'confidence',
                'fwh', 'sample_size', 'method']
-    drop = ['k_fold', 'k_round']
 
     def binom(fail, trials, alpha):
         return scipy.stats.binomtest(k=fail, n=trials, p=alpha, alternative=alternative).pvalue
 
-    group = df.groupby(indexes).agg([np.sum, 'count']).drop(drop, axis=1)
-    print(group)
-    keys = dict(map(lambda t: t[::-1], enumerate(group.index.names)))
-    pvalues = group.apply(lambda t: binom(int(t.fvr['sum']),
-                                          t.fvr['count'], alpha),
-                          #   1 - t.name[keys['confidence']]),
-                          axis=1, result_type='expand')
+    print('MCT')
 
-    return pvalues > alpha
+    try:
+        drop = ['k_fold', 'k_round']
+        group = df.groupby(indexes).agg([np.sum, 'count']).drop(drop, axis=1)
+    except KeyError:
+        drop = ['kth_round', 'nb_round']
+        group = df.groupby(indexes).agg([np.sum, 'count']).drop(drop, axis=1)
 
-
-def plotly_backend(pce, mct, show, no_pce, no_mct):
-
-    title = f'{args.title} ({args.meta_alpha})'
-
-    pce_2d = pce.reset_index().pivot(
-        index=['confidence'], columns=['fwh', 'subject'], values=0)
-    pce_2d_sorted = pce_2d.sort_index(
-        axis=1).sort_index(axis=0, ascending=True)
-
-    colors = ['red', 'green'] + (['orange'] if args.show_nan else [])
-
-    pce_x_labels = [' '.join(map(str, t))
-                    for t in pce_2d_sorted.sort_index(axis=1).columns.values]
-    pce_y_labels = [t for t in pce_2d_sorted.index.values]
-
-    pce_fig = px.imshow(pce_2d_sorted.replace({False: 0, True: 1, np.nan: 2}),
-                        color_continuous_scale=colors,
-                        x=pce_x_labels, y=pce_y_labels, origin='lower')
-
-    pce_fig.update_layout(title=title)
-    pce_fig.update_layout(xaxis2=dict(title='FWHM', domain=[0.25, 0.75]))
-
-    mct_2d = mct.reset_index().pivot(
-        index=['confidence', 'method'], columns=['fwh', 'subject'], values=0)
-    mct_2d_sorted = mct_2d.sort_index(
-        axis=1).sort_index(axis=0, ascending=False)
-
-    pd.set_option('display.max_rows', 500)
-
-    # print(mct_2d_sorted.mean())
-    # print(mct_2d_sorted.mean(axis=1))
-
-    mct_x_labels = [' '.join(map(str, t))
-                    for t in mct_2d_sorted.sort_index(axis=1).columns.values]
-    mct_y_labels = [' '.join(map(str, t))
-                    for t in mct_2d_sorted.sort_index(axis=1).index.values]
-
-    mct_fig = px.imshow(mct_2d_sorted.replace({False: 0, True: 1, np.nan: 2}),
-                        color_continuous_scale=colors, x=mct_x_labels, y=mct_y_labels)
-    mct_fig.update_layout(title=title)
-
-    fhw_sep = []
-    confidence_sep = []
-    x_labels = mct_fig.data[0]['x']
-    y_labels = mct_fig.data[0]['y']
-
-    x_new_labels = []
-    y_new_labels = []
-
-    fwh_before = 0
-    for x in x_labels:
-        fwh, subject = x.split()
-        fwh = int(float(fwh))
-        new_label = f'{fwh} {subject}'
-        x_new_labels.append(new_label)
-        if fwh_before != fwh:
-            if len(x_new_labels) > 2:
-                fhw_sep.append(x_new_labels[-2])
-            fwh_before = fwh
-
-    confidence_before = 0.005
-    for y in y_labels:
-        confidence, method = y.split()
-        # confidence = 1 - float(confidence)
-        new_label = f'{confidence} {method}'
-        y_new_labels.append(new_label)
-        if confidence_before != confidence:
-            if len(y_new_labels) > 2:
-                confidence_sep.append(y_new_labels[-2])
-            confidence_before = confidence
-
-    for sep in fhw_sep:
-        mct_fig.add_vline(x=sep, opacity=0.2)
-
-    for sep in confidence_sep:
-        mct_fig.add_hline(y=sep, opacity=0.2)
-
-    mct_fig.data[0]['x'] = x_new_labels
-    mct_fig.data[0]['y'] = y_new_labels
-
-    if show:
-        if not no_pce:
-            pce_fig.show()
-        if not no_mct:
-            mct_fig.show()
+    if ratio:
+        # print(group.apply(lambda t: t))
+        ratio = group.apply(
+            lambda t: t.fvr['sum'] / t.fvr['count'], axis=1, result_type='expand')
+        # print(ratio)
+        return ratio
+    else:
+        pvalues = group.apply(lambda t: binom(int(t.fvr['sum']),
+                                              t.fvr['count'], alpha),
+                              axis=1, result_type='expand')
+        # print(pvalues)
+        return pvalues > alpha
 
 
 def plot_pce(pces):
@@ -271,13 +200,22 @@ def plot_pce(pces):
     return pce_fig
 
 
-def plot_mct(mcts):
+def plot_mct(mcts, ratio=False):
 
     title = f'{args.title} ({args.meta_alpha})'
-    colors = ['crimson', 'forestgreen'] + (['orange'] if args.show_nan else [])
     subjects = mcts[0].reset_index()['subject'].unique()
     cols = len(mcts)
     rows = len(subjects)
+
+    if ratio:
+        colors = 'RdYlGn_r'
+        zmin = 0
+        zmax = 1
+    else:
+        colors = ['rgb(165,0,38)', 'forestgreen'] + \
+            (['orange'] if args.show_nan else [])
+        zmin = 0
+        zmax = 2 if args.show_nan else 1
 
     mct_fig = make_subplots(rows=rows, cols=cols,
                             column_titles=['RR', 'RS', 'RR+RS'],
@@ -297,6 +235,7 @@ def plot_mct(mcts):
             a['textangle'] = 0
 
         for row, subject in enumerate(subjects, start=1):
+            print(col, row, subject)
 
             mct_ = mct[mct['subject'] == subject]
             mct_2d = mct_.pivot(
@@ -307,33 +246,38 @@ def plot_mct(mcts):
             mct_x_labels = [t for t in mct_2d_sorted.sort_index(
                 axis=1).columns.values]
             mct_y_labels = [
-                float(t[0]) for t in mct_2d_sorted.sort_index(axis=1, ascending=True).index.values]
-            p = mct_2d_sorted.replace({False: 0, True: 1, np.nan: 2})
-            # print(p)
+                str(t[0]) for t in mct_2d_sorted.sort_index(axis=1, ascending=True).index.values]
 
-            # print(p.sort_values(by=["confidence"],
-            #       inplace=True, ascending=False))
+            if ratio:
+                p = mct_2d_sorted
+            else:
+                p = mct_2d_sorted.replace({False: 0, True: 1, np.nan: 2})
 
             im = px.imshow(p,
                            color_continuous_scale=colors,
-                           x=mct_x_labels,   y=mct_y_labels,
+                           x=mct_x_labels, y=mct_y_labels,
+                           zmin=zmin, zmax=zmax,
                            origin='upper')
-            # print(im)
+            print(im)
             mct_fig.add_trace(im.data[0], row=row, col=col)
 
     mct_fig.update_layout(coloraxis=dict(colorscale=colors))
     mct_fig.update_layout(title='')
-    mct_fig.update_traces(showlegend=False)
-    mct_fig.update_coloraxes(showscale=False)
+    if not args.ratio:
+        mct_fig.update_traces(showlegend=False)
+        mct_fig.update_coloraxes(showscale=False)
+    else:
+        # mct_fig.update_layout(margin=dict(r=225))
+        mct_fig.update_layout(coloraxis_colorbar_x=1.05)
     mct_fig.update_layout(margin=dict(t=25))
     mct_fig['layout']['annotations'][-1]['textangle'] = -90
 
     return mct_fig
 
 
-def plotly_backend_split(pces, mcts, show, no_pce, no_mct):
+def plotly_backend(args, pces, mcts, show, no_pce, no_mct, ratio=False):
     pce_fig = plot_pce(pces)
-    mct_fig = plot_mct(mcts)
+    mct_fig = plot_mct(mcts, ratio)
 
     if show:
         if not no_pce:
@@ -341,8 +285,10 @@ def plotly_backend_split(pces, mcts, show, no_pce, no_mct):
         if not no_mct:
             mct_fig.show()
 
-    pce_fig.write_image('pce.pdf', scale=5)
-    mct_fig.write_image('mct.pdf', scale=5)
+    ext = '_ratio' if args.ratio else ''
+
+    pce_fig.write_image(f'{args.test}_pce{ext}.pdf', scale=5)
+    mct_fig.write_image(f'{args.test}_mct{ext}.pdf', scale=5)
 
 
 def seaborn_backend(pce, mct, show):
@@ -392,6 +338,8 @@ def plot_exclude(args):
     show = args.show
     alpha = args.meta_alpha
 
+    ext = '_ratio' if args.ratio else ''
+
     dfs = []
 
     for reference in references:
@@ -407,25 +355,30 @@ def plot_exclude(args):
 
     pce_tests, mct_tests = [], []
     for df in dfs:
-        pce_tests.append(get_pce(df, alpha, alternative='greater'))
-        mct_tests.append(get_mct(df, alpha, alternative='greater'))
+        pce_tests.append(get_pce(args, df, alpha, alternative='greater'))
+        mct_tests.append(
+            get_mct(args, df, alpha, alternative='greater', ratio=args.ratio))
 
     for reference, pce_test, mct_test in zip(references, pce_tests, mct_tests):
+        print('=' * 30)
         print(reference)
         (alpha_star, fwh_star) = get_optimum(pce_test)
         print(f'pce alpha*={alpha_star}, fwh*={fwh_star}')
         (alpha_star, fwh_star) = get_optimum(mct_test)
         print(f'mct alpha*={alpha_star}, fwh*={fwh_star}')
         name = reference.replace(os.path.sep, '_')
-        pce_test.to_csv(f'{name}_pce')
-        mct_test.to_csv(f'{name}_mct')
+        pce_test.to_csv(f'{args.test}_{name}_pce{ext}.csv')
+        mct_test.to_csv(f'{args.test}_{name}_mct{ext}.csv')
 
-    if args.split:
-        plotly_backend_split(pce_tests, mct_tests, show,
-                             no_pce=args.no_pce, no_mct=args.no_mct)
-    else:
-        plotly_backend(pce_tests, mct_tests, show,
-                       no_pce=args.no_pce, no_mct=args.no_mct)
+    plotly_backend(args,
+                   pce_tests, mct_tests, show,
+                   no_pce=args.no_pce,
+                   no_mct=args.no_mct,
+                   ratio=args.ratio)
+
+
+def plot_one(args):
+    plot_exclude(args)
 
 
 def parse_args():
@@ -444,7 +397,7 @@ def parse_args():
     parser.add_argument('--no-mct', action='store_true',
                         help='Do not show MCT')
     parser.add_argument('--show-nan', action='store_true', help='Show NaN')
-    parser.add_argument('--split', action='store_true', help='split image')
+    parser.add_argument('--ratio', action='store_true', help='Print ratio')
     return parser.parse_args()
 
 
@@ -455,3 +408,5 @@ if '__main__' == __name__:
 
     elif args.test == 'exclude':
         plot_exclude(args)
+    elif args.test == 'one':
+        plot_one(args)
