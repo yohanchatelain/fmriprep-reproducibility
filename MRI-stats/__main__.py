@@ -4,6 +4,7 @@
 import warnings
 
 import mri_args
+import mri_distance
 import mri_fvr
 import mri_gmm
 import mri_multiple_testing as mri_mt
@@ -66,6 +67,10 @@ def run_gmm(args):
     mri_gmm.main(args)
 
 
+def run_distance(args):
+    mri_distance.main(args)
+
+
 tests = {
     'all-include': run_all_include,
     'all-exclude': run_all_exclude,
@@ -73,7 +78,8 @@ tests = {
     'normality': run_normality,
     'k-fold': run_k_fold,
     'stats': run_stats,
-    'gmm': run_gmm
+    'gmm': run_gmm,
+    'distance': run_distance,
 }
 
 

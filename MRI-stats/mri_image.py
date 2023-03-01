@@ -159,11 +159,12 @@ def get_paths(prefix, dataset, subject, data_type):
     return paths
 
 
-def get_reference(prefix, subject, dataset, template, data_type):
+def get_reference(prefix, subject, dataset, template, data_type, normalize,
+                  reference_ext=mri_constants.t1_preproc_extension):
     '''
     Returns T1 + mask images for given prefix, subject and dataset
     '''
-    preproc_re = get_preproc_re(subject, template)
+    preproc_re = get_preproc_re(subject, template, reference_ext)
     brain_mask_re = get_brainmask_re(subject, template)
     paths = get_paths(prefix, dataset, subject, data_type)
 

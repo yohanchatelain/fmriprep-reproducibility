@@ -133,6 +133,14 @@ def init_module_gmm(parser):
                            help='Directory to cache gmm models')
 
 
+def init_module_distance(parser):
+    msg = """
+    Submodule for computing various distances
+    """
+    subparser = parser.add_parser("distance", help=msg)
+    init_global_args(subparser)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='mri-stats', prog='mri-stats')
     subparser = parser.add_subparsers(title='MRI-stats submodules',
@@ -145,6 +153,7 @@ def parse_args():
     init_module_k_fold(subparser)
     init_module_stats(subparser)
     init_module_gmm(subparser)
+    init_module_distance(subparser)
 
     args, _ = parser.parse_known_args()
 
