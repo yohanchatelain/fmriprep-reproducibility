@@ -2,17 +2,16 @@ import numpy as np
 from statsmodels.stats.multitest import multipletests
 import mri_printer
 import warnings
-from scipy.stats import norm
+from scipy.stats import binomtest
 import numpy as np
 
 # euler_constant = 0.5772156649015328
 
 
 def pce_test(reject, tests, alpha):
-    success = tests - reject
-    # probability_success = alpha
-    z = (success + 0.5 - tests*alpha) / np.sqrt(tests * alpha * (1-alpha))
-    return 2 * norm.sf(np.abs(z)) >= alpha
+    b = binomtest(k=reject, n=tests, p=alpha)
+    print(b.proportion_ci())
+    return b.pvalue < alpha
 
 
 def pce(target, p_values, alpha):
