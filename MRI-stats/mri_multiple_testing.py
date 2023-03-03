@@ -10,7 +10,8 @@ import numpy as np
 
 def pce_test(reject, tests, alpha):
     success = tests - reject
-    z = success + 0.5 - tests*(1-alpha) / np.sqrt(tests * alpha * (1-alpha))
+    # probability_success = alpha
+    z = (success + 0.5 - tests*alpha) / np.sqrt(tests * alpha * (1-alpha))
     return 2 * norm.sf(np.abs(z)) >= alpha
 
 
