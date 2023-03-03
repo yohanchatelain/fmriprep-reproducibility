@@ -12,8 +12,6 @@ def init_global_args(parser):
                         type=float, default=NaN, help="Population")
     parser.add_argument("--reference-template", action="store",
                         required=True, help="Reference template")
-    parser.add_argument("--target-template", action="store",
-                        required=True, help="Target template")
     parser.add_argument("--data-type", action="store",
                         default='anat', choices=['anat'],
                         required=True, help="Data type")
@@ -91,6 +89,8 @@ def init_module_one(parser):
                            required=True, help="Dataset target")
     subparser.add_argument("--target-subject", action="store",
                            required=True, help="Subject target")
+    parser.add_argument("--target-template", action="store",
+                         required=True, help="Target template")
 
 
 def init_module_normality(parser):
