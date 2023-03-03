@@ -10,7 +10,6 @@ import numpy as np
 
 def pce_test(reject, tests, alpha):
     b = binomtest(k=reject, n=tests, p=alpha)
-    print(b.proportion_ci())
     return b.pvalue >= alpha
 
 
