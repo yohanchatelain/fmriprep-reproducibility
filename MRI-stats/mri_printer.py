@@ -45,7 +45,7 @@ def __ratio_msg(alpha, reject, tests, passed):
     ratio = reject/tests
     nb_digits = int(np.ceil(np.log10(tests)))
     reject_formatted = f'{reject:>{nb_digits}}'
-    ratio_msg = f'[α={alpha:.3f}|{ratio*100:>6.3f}%|{reject_formatted}/{tests}]'
+    ratio_msg = f'[α={alpha:.4f}|{ratio*100:>6.3f}%|{reject_formatted}/{tests}]'
     return __test_color(passed)(ratio_msg)
 
 
