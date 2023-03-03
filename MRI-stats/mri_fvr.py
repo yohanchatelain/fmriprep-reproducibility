@@ -39,7 +39,7 @@ def compute_fvr(methods, target, confidences, *args, **info):
                                  tests=nb_test,
                                  method=method.__name__)
             global_fp[method.__name__] = nb_reject, nb_test
-    print_sep()
+        print_sep()
     return global_fp
 
 
