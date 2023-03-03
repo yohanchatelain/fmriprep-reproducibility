@@ -73,15 +73,17 @@ def dump_p_values(target, p_value, supermask, alpha):
     dump_stat(target, p_value, supermask, alpha, stat_name='p_value')
 
 
-def get_images(paths, preproc_re, normalize):
+def get_images(paths, preproc_re):
     '''
     Load Nifti1Image from image paths
     '''
     images = []
     for path in paths:
-        image = load_image(glob.glob(os.path.join(path, preproc_re))[0])
-        if normalize:
-            image = normalize_image(image)
+        image_path = glob.glob(os.path.join(path, preproc_re))
+        if len(image_path) != 0:
+            image = load_image(image_path[0])
+        else:
+            continue
         images.append(image)
 
     return np.array(images)
@@ -91,8 +93,16 @@ def get_masks(paths, brain_mask_re):
     '''
     Load Nifti1Image from mask paths
     '''
-    return np.array([load_image(glob.glob(os.path.join(path, brain_mask_re))[0])
-                     for path in paths])
+    masks = []
+    for path in paths:
+        mask_path = glob.glob(os.path.join(path, brain_mask_re))
+        if len(mask_path) != 0:
+            mask = load_image(mask_path[0])
+            masks.append(mask)
+        else:
+            continue
+
+    return np.array(masks)
 
 
 def combine_mask(masks_list, operator):
@@ -128,23 +138,14 @@ def resample_images(sources, target):
         [nilearn.image.resample_to_img(source, target) for source in sources]
     )
 
-
-def normalize_image(image):
-    voxels = image.get_fdata()
-    normalized_image = voxels / voxels.max()
-    new = nibabel.Nifti1Image(normalized_image, image.affine)
-    new.set_filename(image.get_filename())
-    return new
-
-
 def get_preproc_re(subject, template,
                    preproc_ext=mri_constants.preproc_extension):
-    return f'{subject}*{template}{preproc_ext}'
+    return f'{subject}_space-{template}{preproc_ext}'
 
 
 def get_brainmask_re(subject, template,
                      brainmask_ext=mri_constants.brain_mask_extension):
-    return f'{subject}*{template}{brainmask_ext}'
+    return f'{subject}_space-{template}{brainmask_ext}'
 
 
 def get_paths(prefix, dataset, subject, data_type):
@@ -154,7 +155,7 @@ def get_paths(prefix, dataset, subject, data_type):
     return paths
 
 
-def get_reference(prefix, subject, dataset, template, data_type, normalize):
+def get_reference(prefix, subject, dataset, template, data_type):
     '''
     Returns T1 + mask images for given prefix, subject and dataset
     '''
@@ -162,7 +163,7 @@ def get_reference(prefix, subject, dataset, template, data_type, normalize):
     brain_mask_re = get_brainmask_re(subject, template)
     paths = get_paths(prefix, dataset, subject, data_type)
 
-    images = get_images(paths, preproc_re, normalize)
+    images = get_images(paths, preproc_re)
     masks = get_masks(paths, brain_mask_re)
 
     if len(images) == 0:
@@ -175,18 +176,21 @@ def get_reference(prefix, subject, dataset, template, data_type, normalize):
     return images, masks
 
 
-def get_masked_t1(t1, mask, smooth_kernel):
+def get_masked_t1(t1, mask, smooth_kernel, normalize):
     if smooth_kernel == 0:
         smooth_kernel = None
-    return nilearn.masking.apply_mask(imgs=t1,
+    masked = nilearn.masking.apply_mask(imgs=t1,
                                       mask_img=mask,
                                       smoothing_fwhm=smooth_kernel)
+    if normalize:
+        masked = (masked - masked.min()) / (masked.max() - masked.min())
 
-
-def mask_t1(t1s, masks, mask_combination, smooth_kernel):
+    return masked
+        
+def mask_t1(t1s, masks, mask_combination, smooth_kernel, normalize):
     supermask = combine_mask(masks, mask_combination)
     masked_t1s = map(lambda t1: get_masked_t1(
-        t1, supermask, smooth_kernel), t1s)
+        t1, supermask, smooth_kernel, normalize), t1s)
     return np.stack(masked_t1s), supermask
 
 
@@ -200,58 +204,6 @@ def get_reference_gmm(gmm_prefix,
     with open(path, 'rb') as fi:
         return pickle.load(fi)
     return None
-
-
-def get_reference_args(args):
-    return get_reference(subject=args.subject,
-                         template=args.template,
-                         reference=args.reference,
-                         dataset=args.dataset,
-                         data_type=args.data_type,
-                         mask_combination=args.mask_combination,
-                         normalize=args.normalize,
-                         smooth_kernel=args.smooth_kernel,
-                         normality_mask=args.normality_mask)
-
-
-def get_target_image(path, preproc_re, brain_mask_re,
-                     normalize, normality_mask):
-    image_path = glob.glob(os.path.join(path, preproc_re))[0]
-    brain_path = glob.glob(os.path.join(path, brain_mask_re))[0]
-    image = load_image(image_path)
-    brain_mask = load_image(brain_path)
-    if normality_mask is None:
-        mask = brain_mask
-    else:
-        mask = np.ma.logical_and(brain_mask, ~normality_mask)
-    normalized_image = normalize_image(image) if normalize else image
-    masked_image = mask_image(normalized_image, mask)
-    masked_image.set_filename(image.get_filename())
-    return masked_image
-
-
-def get_target(target_prefix, target_subject, target_dataset,
-               template, data_type, normalize, normality_mask):
-    # Mask where True values are voxels failings Shapiro-Wilk test
-    normality_mask = mri_normality.get_normality_mask(
-        normality_mask_dir=normality_mask)
-    preproc_re = get_preproc_re(target_subject, template)
-    brain_mask_re = get_brainmask_re(target_subject, template)
-    paths = get_paths(target_prefix, target_dataset, target_subject, data_type)
-    data = [get_target_image(path, preproc_re, brain_mask_re,
-                             normalize, normality_mask)
-            for path in paths]
-    return np.array(data)
-
-
-def get_target_args(args):
-    return get_target(target_prefix=args.target,
-                      target_subject=args.subject_target,
-                      template=args.template,
-                      target_dataset=args.dataset_target,
-                      data_type=args.data_type,
-                      normalize=args.normalize,
-                      normality_mask=args.normality_mask)
 
 
 def get_template(template):

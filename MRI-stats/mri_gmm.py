@@ -36,7 +36,7 @@ def load_gmm(args, filenames):
     prefix = args.reference_prefix
     subject = args.reference_subject
     dataset = args.reference_dataset
-    template = args.template
+    template = args.reference_template
     mask = args.mask_combination
     fwh = str(args.smooth_kernel)
     key = str(get_key(filenames))
@@ -68,7 +68,7 @@ def dump_gmm(args, m, filenames):
     prefix = args.reference_prefix
     subject = args.reference_subject
     dataset = args.reference_dataset
-    template = args.template
+    template = args.reference_template
     mask = args.mask_combination
     fwh = str(args.smooth_kernel)
     key = get_key(filenames)
@@ -119,7 +119,7 @@ def compute_gmm(args):
         prefix=args.reference_prefix,
         subject=args.reference_subject,
         dataset=args.reference_dataset,
-        template=args.template,
+        template=args.reference_template,
         data_type=args.data_type)
 
     kfold = KFold(len(reference_t1s))

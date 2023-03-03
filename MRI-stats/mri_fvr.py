@@ -51,7 +51,7 @@ def compute_pvalues_stats(args, ith_target, target_T1, supermask,
 
     # For each target image, compute the Z-score associated
     target_filename = target_T1.get_filename()
-    target_masked = mri_image.get_masked_t1(target_T1, supermask, fwh)
+    target_masked = mri_image.get_masked_t1(target_T1, supermask, fwh, args.normalize)
 
     score_name, score_fun = mri_stats.get_score(score=score)
     mri_printer.print_info(score_name, sample_size,
@@ -89,7 +89,7 @@ def compute_sig_stats(args,
 
 
     target_filename = target_T1.get_filename()
-    target_masked = mri_image.get_masked_t1(target_T1, supermask, fwh)
+    target_masked = mri_image.get_masked_t1(target_T1, supermask, fwh, args.normalize)
 
     mri_printer.print_info('Sigbit', sample_size,
                            target_filename, ith_target)
@@ -214,7 +214,7 @@ def compute_k_fold_fvr(args, reference_T1, reference_mask, nb_rounds, methods):
         train_t1 = reference_T1[train_id]
         train_mask = reference_mask[train_id]
         train_t1_masked, supermask = mri_image.mask_t1(
-            train_t1, train_mask, mask_combination, fwh)
+            train_t1, train_mask, mask_combination, fwh, args.normalize)
 
         test = reference_T1[test_id]
 
@@ -243,9 +243,8 @@ def compute_all_include_fvr(args, methods):
         prefix=args.reference_prefix,
         subject=args.reference_subject,
         dataset=args.reference_dataset,
-        template=args.template,
-        data_type=args.data_type,
-        normalize=args.normalize)
+        template=args.reference_template,
+        data_type=args.data_type)
 
     reference_sample_size = len(reference_t1s)
 
@@ -253,7 +252,8 @@ def compute_all_include_fvr(args, methods):
     reference_masked, supermask = mri_image.mask_t1(
         reference_t1s, reference_masks,
         args.mask_combination,
-        args.smooth_kernel)
+        args.smooth_kernel,
+        args.normalize)
     mean = np.mean(reference_masked, axis=0)
     std = np.std(reference_masked, axis=0)
     alpha = 1 - args.confidence
@@ -278,9 +278,8 @@ def compute_all_exclude_fvr(args, methods):
         prefix=args.reference_prefix,
         subject=args.reference_subject,
         dataset=args.reference_dataset,
-        template=args.template,
-        data_type=args.data_type,
-        normalize=args.normalize)
+        template=args.reference_template,
+        data_type=args.data_type)
 
     reference_sample_size = len(reference_t1s)
 
@@ -300,24 +299,23 @@ def compute_one_fvr(args, methods):
         prefix=args.reference_prefix,
         subject=args.reference_subject,
         dataset=args.reference_dataset,
-        template=args.template,
-        data_type=args.data_type,
-        normalize=args.normalize)
+        template=args.reference_template,
+        data_type=args.data_type)
 
     reference_sample_size = len(reference_t1s)
 
     train_t1_masked, supermask = mri_image.mask_t1(reference_t1s,
                                                    reference_masks,
                                                    args.mask_combination,
-                                                   args.smooth_kernel)
+                                                   args.smooth_kernel,
+                                                   args.normalize)
 
     target_t1s, _ = mri_image.get_reference(
         prefix=args.target_prefix,
         subject=args.target_subject,
         dataset=args.target_dataset,
-        template=args.template,
-        data_type=args.data_type,
-        normalize=args.normalize)
+        template=args.target_template,
+        data_type=args.data_type)
 
     print(f'Sample size: {reference_sample_size}')
 
@@ -350,15 +348,12 @@ def compute_one_fvr(args, methods):
 def compute_k_fold(args, methods):
     normality_mask_path = mri_normality.run_test_normality(args)
     reference, supermask = mri_image.get_reference(
-        reference_prefix=args.reference_prefix,
-        reference_subject=args.reference_subject,
-        reference_dataset=args.reference_dataset,
-        template=args.template,
-        data_type=args.data_type,
-        mask_combination=args.mask_combination,
-        normalize=args.normalize,
-        smooth_kernel=args.smooth_kernel,
-        normality_mask=normality_mask_path)
+        prefix=args.reference_prefix,
+        subject=args.reference_subject,
+        dataset=args.reference_dataset,
+        template=args.reference_template,
+        data_type=args.data_type)
+    
     reference_sample_size = len(reference)
     nb_voxels_in_mask = np.count_nonzero(supermask)
 
@@ -444,9 +439,8 @@ def compute_stats(args):
         prefix=args.reference_prefix,
         subject=args.reference_subject,
         dataset=args.reference_dataset,
-        template=args.template,
-        data_type=args.data_type,
-        normalize=args.normalize)
+        template=args.reference_template,
+        data_type=args.data_type)
 
     reference_sample_size = len(reference_t1s)
 
@@ -455,7 +449,8 @@ def compute_stats(args):
     t1s_masked, supermask = mri_image.mask_t1(t1s=reference_t1s,
                                               masks=reference_masks,
                                               mask_combination=args.mask_combination,
-                                              smooth_kernel=args.smooth_kernel)
+                                              smooth_kernel=args.smooth_kernel,
+                                              normalize=args.normalize)
 
     mean = np.mean(t1s_masked, axis=0)
     std = np.std(t1s_masked, axis=0)
@@ -469,7 +464,7 @@ def compute_stats(args):
     filename = '_'.join([args.reference_prefix,
                          args.reference_dataset,
                          args.reference_subject,
-                         args.template,
+                         args.reference_template,
                          args.mask_combination,
                          str(int(args.smooth_kernel))])
 

@@ -10,8 +10,10 @@ def init_global_args(parser):
                         default=0.95, type=float, help="Confidence")
     parser.add_argument("--population", action="store",
                         type=float, default=NaN, help="Population")
-    parser.add_argument("--template", action="store",
-                        required=True, help="Template")
+    parser.add_argument("--reference-template", action="store",
+                        required=True, help="Reference template")
+    parser.add_argument("--target-template", action="store",
+                        required=True, help="Target template")
     parser.add_argument("--data-type", action="store",
                         default='anat', choices=['anat'],
                         required=True, help="Data type")

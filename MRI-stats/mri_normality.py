@@ -59,7 +59,7 @@ def run_test_normality(args):
     returns the filename
     '''
 
-    template = args.template
+    template = args.reference_template
     dataset = args.reference_dataset
     subject = args.reference_subject
     mask_combination = args.mask_combination
@@ -70,7 +70,7 @@ def run_test_normality(args):
         prefix=args.reference_prefix,
         subject=args.reference_subject,
         dataset=args.reference_dataset,
-        template=args.template,
+        template=args.reference_template,
         data_type=args.data_type)
 
     mri_printer.print_sep1('Normality test')
