@@ -1,3 +1,6 @@
+import numpy as np
+
+
 class bcolors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
@@ -22,16 +25,42 @@ def enable_verbose_mode():
     verbose = True
 
 
-def print_result(target, reject, tests, alpha, name=None):
-    _name = f'{bcolors.BOLD}{name:<9}{bcolors.ENDC} ' if name else ''
+def __pass_color_msg(msg):
+    return f'{bcolors.BOLD}{bcolors.OKGREEN}{msg}{bcolors.ENDC}'
+
+
+def __fail_color_msg(msg):
+    return f'{bcolors.BOLD}{bcolors.FAIL}{msg}{bcolors.ENDC}'
+
+
+def __test_color(passed):
+    return __pass_color_msg if passed else __fail_color_msg
+
+
+def __name_msg(name):
+    return f'{bcolors.BOLD}{name:<9}{bcolors.ENDC} ' if name else ''
+
+
+def __ratio_msg(alpha, reject, tests, passed):
     ratio = reject/tests
-    if ratio < alpha:
-        msg = f"PASS [{ratio*100:>6.3f}%|{reject}/{tests}]"
-        msg_color = f'{_name}{bcolors.BOLD}{bcolors.OKGREEN}{msg:^25}{bcolors.ENDC}  {target.get_filename()}'
-    else:
-        msg = f"FAIL [{ratio*100:>6.3f}%|{reject}/{tests}]"
-        msg_color = f'{_name}{bcolors.BOLD}{bcolors.FAIL}{msg:^25}{bcolors.ENDC}  {target.get_filename()}'
-    print(msg_color)
+    nb_digits = int(np.ceil(np.log10(tests)))
+    reject_formatted = f'{reject:>{nb_digits}}'
+    ratio_msg = f'[α={alpha:.3f}|{ratio*100:>6.3f}%|{reject_formatted}/{tests}]'
+    return __test_color(passed)(ratio_msg)
+
+
+def __label_msg(passed):
+    label = 'PASS' if passed else 'FAIL'
+    return __test_color(passed)(label)
+
+
+def print_result(target, reject, tests, alpha, passed, name=None):
+    name_msg = __name_msg(name)
+    label_msg = __label_msg(passed)
+    ratio_msg = __ratio_msg(alpha, reject, tests, passed)
+    filename_msg = target.get_filename()
+
+    print(f"{name_msg}{label_msg}{ratio_msg}{filename_msg}")
 
 
 def print_info(score, nsample, target, i=None):

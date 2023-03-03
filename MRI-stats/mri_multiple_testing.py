@@ -1,6 +1,7 @@
 import numpy as np
 from statsmodels.stats.multitest import multipletests
 import mri_printer
+import warnings
 
 # euler_constant = 0.5772156649015328
 
@@ -53,27 +54,31 @@ def mct(target, p_values, alpha, method, short_name, long_name):
     '''
     name = short_name
     N = p_values.size
-    reject, _, corrected_threshold_sidak, corrected_threshold_bonferroni = multipletests(
-        p_values, alpha=alpha, method=method, is_sorted=True)
 
-    if method == 'bonferroni':
-        corrected_threshold = corrected_threshold_bonferroni
-    elif method == 'sidak':
-        corrected_threshold = corrected_threshold_sidak
-    else:
-        corrected_threshold = None
+    reject = None
+    corrected_threshold = None
+
+    with warnings.catch_warnings():
+        reject, _, corrected_threshold_sidak, corrected_threshold_bonferroni = multipletests(
+            p_values, alpha=alpha, method=method, is_sorted=True)
+
+        if method == 'bonferroni':
+            corrected_threshold = corrected_threshold_bonferroni
+        elif method == 'sidak':
+            corrected_threshold = corrected_threshold_sidak
 
     nb_reject = np.ma.sum(reject)
     ratio = nb_reject / N
 
     if mri_printer.verbose:
         mri_printer.print_name_method(long_name)
-        if corrected_threshold is not None:
-            print(
-                f'- Alpha correction      = {corrected_threshold:f} ({corrected_threshold:.3e})')
+        ct = corrected_threshold
+        if ct is not None:
+            print(f'- Alpha correction      = {ct:f} ({ct:.3e})')
         print(f'- Card(FP)              = {nb_reject}')
         print(f'- Card(Voxels)          = {N}')
         print(f'- Card(FP)/Card(Voxels) = {ratio:.2e} [{ratio*100:f}%]')
+
     mri_printer.print_result(target, nb_reject, N, alpha, name)
 
     return nb_reject, N
