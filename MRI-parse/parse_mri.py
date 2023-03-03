@@ -76,7 +76,7 @@ def get_test(test, confidence,
     return include
 
 
-def get_pce(args, df, alpha, alternative='two-sided'):
+def get_pce(args, df, alpha, alternative='two-sided', ratio=False):
     '''
     Return tests that passes
     '''
@@ -87,15 +87,21 @@ def get_pce(args, df, alpha, alternative='two-sided'):
 
     indexes = ['dataset', 'subject', 'confidence', 'fwh', 'sample_size']
 
-    try:
-        drop = ['k_fold', 'k_round', 'target', 'method']
+    # try:
+    #     drop = ['k_fold', 'k_round', 'target', 'method']
+    #     pvalues = df.groupby(indexes).agg(list).drop(drop, axis=1).apply(
+    #         lambda t: ttest(t.fvr, 1 - t.name[2]), axis=1, result_type='expand')
+    # except KeyError:
+    drop = ['kth_round', 'nb_round', 'target', 'method']
+
+    if args.ratio:
+        ratio = df.groupby(indexes).agg(list).drop(drop, axis=1).apply(
+            lambda t: np.mean(t.fvr), axis=1, result_type='expand')
+        return ratio
+    else:
         pvalues = df.groupby(indexes).agg(list).drop(drop, axis=1).apply(
             lambda t: ttest(t.fvr, 1 - t.name[2]), axis=1, result_type='expand')
-    except KeyError:
-        drop = ['kth_round', 'nb_round', 'target', 'method']
-        pvalues = df.groupby(indexes).agg(list).drop(drop, axis=1).apply(
-            lambda t: ttest(t.fvr, 1 - t.name[2]), axis=1, result_type='expand')
-    return pvalues > alpha
+        return pvalues > alpha
 
 
 def get_mct(args, df, alpha, alternative='two-sided', ratio=False):
@@ -114,8 +120,8 @@ def get_mct(args, df, alpha, alternative='two-sided', ratio=False):
     df = df[df['method'] != 'fwe_sidak']
     df = df[df['method'] != 'fwe_holm_sidak']
     df = df[df['method'] != 'fwe_holm_bonferroni']
-    # df = df[df['method'] != 'fdr_BY']
-    df = df[df['method'] != 'fwe_bonferroni']
+    df = df[df['method'] != 'fdr_BY']
+    # df = df[df['method'] != 'fwe_bonferroni']
 
     indexes = ['dataset', 'subject', 'confidence',
                'fwh', 'sample_size', 'method']
@@ -146,9 +152,17 @@ def get_mct(args, df, alpha, alternative='two-sided', ratio=False):
         return pvalues > alpha
 
 
-def plot_pce(pces):
+def plot_pce(pces, ratio=False):
 
-    colors = ['crimson', 'forestgreen'] + (['orange'] if args.show_nan else [])
+    if ratio:
+        colors = 'RdYlGn_r'
+        zmin = 0
+        zmax = 1
+    else:
+        colors = ['rgb(165,0,38)', 'forestgreen'] + \
+            (['orange'] if args.show_nan else [])
+        zmin = 0
+        zmax = 2 if args.show_nan else 1
 
     subjects = pces[0].reset_index()['subject'].unique()
     cols = len(pces)
@@ -159,7 +173,7 @@ def plot_pce(pces):
                             row_titles=subjects.tolist(),
                             shared_xaxes=True,
                             shared_yaxes=True,
-                            x_title='FWHM',
+                            x_title='FWHM (mm)',
                             y_title='Confidence level',
                             vertical_spacing=0.02,
                             horizontal_spacing=0.01)
@@ -192,9 +206,14 @@ def plot_pce(pces):
 
     pce_fig.update_layout(coloraxis=dict(colorscale=colors))
     pce_fig.update_coloraxes(cmin=0, cmax=1)
-    pce_fig.update_traces(showlegend=False)
-    pce_fig.update_coloraxes(showscale=False)
     pce_fig.update_layout(margin=dict(t=25, b=60))
+
+    if not args.ratio:
+        pce_fig.update_traces(showlegend=False)
+        pce_fig.update_coloraxes(showscale=False)
+    else:
+        pce_fig.update_layout(coloraxis_colorbar_x=1.05)
+
     pce_fig['layout']['annotations'][-1]['textangle'] = -90
 
     return pce_fig
@@ -222,7 +241,7 @@ def plot_mct(mcts, ratio=False):
                             row_titles=subjects.tolist(),
                             shared_xaxes=True,
                             shared_yaxes=True,
-                            x_title='FWHM',
+                            x_title='FWHM (mm)',
                             y_title='Confidence level',
                             vertical_spacing=0.02,
                             horizontal_spacing=0.01)
@@ -258,7 +277,7 @@ def plot_mct(mcts, ratio=False):
                            x=mct_x_labels, y=mct_y_labels,
                            zmin=zmin, zmax=zmax,
                            origin='upper')
-            print(im)
+            # print(im)
             mct_fig.add_trace(im.data[0], row=row, col=col)
 
     mct_fig.update_layout(coloraxis=dict(colorscale=colors))
@@ -267,7 +286,6 @@ def plot_mct(mcts, ratio=False):
         mct_fig.update_traces(showlegend=False)
         mct_fig.update_coloraxes(showscale=False)
     else:
-        # mct_fig.update_layout(margin=dict(r=225))
         mct_fig.update_layout(coloraxis_colorbar_x=1.05)
     mct_fig.update_layout(margin=dict(t=25))
     mct_fig['layout']['annotations'][-1]['textangle'] = -90
@@ -276,7 +294,7 @@ def plot_mct(mcts, ratio=False):
 
 
 def plotly_backend(args, pces, mcts, show, no_pce, no_mct, ratio=False):
-    pce_fig = plot_pce(pces)
+    pce_fig = plot_pce(pces, ratio)
     mct_fig = plot_mct(mcts, ratio)
 
     if show:
@@ -355,7 +373,8 @@ def plot_exclude(args):
 
     pce_tests, mct_tests = [], []
     for df in dfs:
-        pce_tests.append(get_pce(args, df, alpha, alternative='greater'))
+        pce_tests.append(
+            get_pce(args, df, alpha, alternative='two-sided', ratio=args.ratio))
         mct_tests.append(
             get_mct(args, df, alpha, alternative='greater', ratio=args.ratio))
 
