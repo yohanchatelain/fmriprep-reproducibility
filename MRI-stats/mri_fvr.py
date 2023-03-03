@@ -25,9 +25,9 @@ def compute_fvr(methods, target, confidences, *args, **info):
     def print_sep(): return print(mri_printer.sep_h3) if len(
         methods) > 1 else lambda: None
 
-    for confidence in confidences:
-        alpha = 1 - confidence
-        for method in methods:
+    for method in methods:
+        for confidence in confidences:
+            alpha = 1 - confidence
             if mri_printer.verbose:
                 print_sep()
 
