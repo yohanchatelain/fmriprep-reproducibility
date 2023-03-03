@@ -60,7 +60,7 @@ def print_result(target, reject, tests, alpha, passed, name=None):
     ratio_msg = __ratio_msg(alpha, reject, tests, passed)
     filename_msg = target.get_filename()
 
-    print(f"{name_msg}{label_msg}{ratio_msg}{filename_msg}")
+    print(f"{name_msg} {label_msg} {ratio_msg} {filename_msg}")
 
 
 def print_info(score, nsample, target, i=None):
