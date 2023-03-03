@@ -271,13 +271,13 @@ def compute_all_exclude_fvr(args, methods):
 
     print(f'Sample size: {reference_sample_size}')
 
-    nb_reject, nb_tests = compute_k_fold_fvr(args,
-                                             reference_T1=reference_t1s,
-                                             reference_mask=reference_masks,
-                                             nb_rounds=reference_sample_size,
-                                             methods=methods)
+    fvr = compute_k_fold_fvr(args,
+                             reference_T1=reference_t1s,
+                             reference_mask=reference_masks,
+                             nb_rounds=reference_sample_size,
+                             methods=methods)
 
-    return nb_reject, nb_tests
+    return fvr
 
 
 def compute_one_fvr(args, methods):
