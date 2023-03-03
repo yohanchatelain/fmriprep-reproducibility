@@ -90,7 +90,7 @@ def init_module_one(parser):
     subparser.add_argument("--target-subject", action="store",
                            required=True, help="Subject target")
     subparser.add_argument("--target-template", action="store",
-                         required=True, help="Target template")
+                           required=True, help="Target template")
 
 
 def init_module_normality(parser):
