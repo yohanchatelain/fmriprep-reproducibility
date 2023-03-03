@@ -12,19 +12,19 @@ def pce(target, p_values, alpha):
     name = 'PCE'
     N = p_values.size
     threshold = alpha
-    fp = p_values < threshold
-    false_positive = np.ma.sum(fp)
-    ratio = false_positive/N
+    reject = p_values < threshold
+    nb_reject = np.ma.sum(reject)
+    ratio = reject/N
 
     if mri_printer.verbose:
         mri_printer.print_name_method('Per-Comparison Error (Uncorrected)')
         print(f'- Alpha                 = {threshold:f}')
-        print(f'- Card(FP)              = {false_positive}')
+        print(f'- Card(Reject)          = {nb_reject}')
         print(f'- Card(Voxels)          = {N}')
-        print(f'- Card(FP)/Card(Voxels) = {ratio:.2e} [{ratio*100:f}%]')
-    mri_printer.print_result(target, ratio, alpha, name)
+        print(f'- Card(Reject)/Card(Voxels) = {ratio:.2e} [{ratio*100:f}%]')
+    mri_printer.print_result(target, nb_reject, N, alpha, name)
 
-    return ratio
+    return nb_reject, N
 
 
 def pce_sig(target, ref, test, alpha):
@@ -33,18 +33,18 @@ def pce_sig(target, ref, test, alpha):
     '''
     name = 'PCE-sig'
     N = ref.size
-    fp = test < ref
-    false_positive = np.ma.sum(fp)
-    ratio = false_positive/N
+    reject = test < ref
+    nb_reject = np.ma.sum(reject)
+    ratio = nb_reject/N
 
     if mri_printer.verbose:
         mri_printer.print_name_method('Per-Comparison Error (Uncorrected)')
-        print(f'- Card(FP)              = {false_positive}')
+        print(f'- Card(Reject)          = {nb_reject}')
         print(f'- Card(Voxels)          = {N}')
         print(f'- Card(FP)/Card(Voxels) = {ratio:.2e} [{ratio*100:f}%]')
-    mri_printer.print_result(target, ratio, alpha, name)
+    mri_printer.print_result(target, nb_reject, N, alpha, name)
 
-    return ratio
+    return nb_reject, N
 
 
 def mct(target, p_values, alpha, method, short_name, long_name):
@@ -63,21 +63,20 @@ def mct(target, p_values, alpha, method, short_name, long_name):
     else:
         corrected_threshold = None
 
-    false_positive = np.ma.sum(reject)
-    fail = 1 if false_positive > 0 else 0
-    ratio = false_positive / N
+    nb_reject = np.ma.sum(reject)
+    ratio = nb_reject / N
 
     if mri_printer.verbose:
         mri_printer.print_name_method(long_name)
         if corrected_threshold is not None:
             print(
                 f'- Alpha correction      = {corrected_threshold:f} ({corrected_threshold:.3e})')
-        print(f'- Card(FP)              = {false_positive}')
+        print(f'- Card(FP)              = {nb_reject}')
         print(f'- Card(Voxels)          = {N}')
         print(f'- Card(FP)/Card(Voxels) = {ratio:.2e} [{ratio*100:f}%]')
-    mri_printer.print_result(target, fail, alpha, name)
+    mri_printer.print_result(target, nb_reject, N, alpha, name)
 
-    return fail
+    return nb_reject, N
 
 
 def fwe_bonferroni(target, p_values, alpha):

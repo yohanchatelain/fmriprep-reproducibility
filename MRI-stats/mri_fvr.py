@@ -29,12 +29,13 @@ def compute_fvr(methods, target, *args, **info):
         if mri_printer.verbose:
             print_sep()
 
-        fp = method(target, *args)
+        nb_reject, nb_test = method(target, *args)
         stats_collect.append(**info,
                              target=target.get_filename(),
-                             fvr=fp,
+                             reject=nb_reject,
+                             tests=nb_test,
                              method=method.__name__)
-        global_fp[method.__name__] = fp
+        global_fp[method.__name__] = nb_reject, nb_test
     print_sep()
     return global_fp
 
@@ -285,13 +286,13 @@ def compute_all_exclude_fvr(args, methods):
 
     print(f'Sample size: {reference_sample_size}')
 
-    fvr = compute_k_fold_fvr(args,
+    nb_reject, nb_tests = compute_k_fold_fvr(args,
                              reference_T1=reference_t1s,
                              reference_mask=reference_masks,
                              nb_rounds=reference_sample_size,
                              methods=methods)
 
-    return fvr
+    return nb_reject, nb_tests
 
 
 def compute_one_fvr(args, methods):

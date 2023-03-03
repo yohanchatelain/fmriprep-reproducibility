@@ -22,14 +22,15 @@ def enable_verbose_mode():
     verbose = True
 
 
-def print_result(target, ratio, alpha, name=None):
+def print_result(target, reject, tests, alpha, name=None):
     _name = f'{bcolors.BOLD}{name:<9}{bcolors.ENDC} ' if name else ''
+    ratio = reject/tests
     if ratio < alpha:
-        msg = f"PASS [{ratio*100:>6.3f}%]"
-        msg_color = f'{_name}{bcolors.BOLD}{bcolors.OKGREEN}{msg:^7}{bcolors.ENDC}  {target.get_filename()}'
+        msg = f"PASS [{ratio*100:>6.3f}%|{reject}/{tests}]"
+        msg_color = f'{_name}{bcolors.BOLD}{bcolors.OKGREEN}{msg:^25}{bcolors.ENDC}  {target.get_filename()}'
     else:
-        msg = f"FAIL [{ratio*100:>6.3f}%]"
-        msg_color = f'{_name}{bcolors.BOLD}{bcolors.FAIL}{msg:^7}{bcolors.ENDC}  {target.get_filename()}'
+        msg = f"FAIL [{ratio*100:>6.3f}%|{reject}/{tests}]"
+        msg_color = f'{_name}{bcolors.BOLD}{bcolors.FAIL}{msg:^25}{bcolors.ENDC}  {target.get_filename()}'
     print(msg_color)
 
 

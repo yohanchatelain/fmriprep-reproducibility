@@ -14,7 +14,7 @@ class Statistic:
             self._name = name
 
     def append(self, dataset, subject, confidence, sample_size,
-               target, fvr, method, fwh, nb_round=None, kth_round=None):
+               target, reject, tests, method, fwh, nb_round=None, kth_round=None):
         _row = dict(dataset=dataset,
                     subject=subject,
                     confidence=confidence,
@@ -22,7 +22,8 @@ class Statistic:
                     target=target,
                     method=method,
                     fwh=fwh,
-                    fvr=fvr,
+                    reject=reject,
+                    tests=tests,
                     nb_round=nb_round,
                     kth_round=kth_round)
         self._data.append(_row)
