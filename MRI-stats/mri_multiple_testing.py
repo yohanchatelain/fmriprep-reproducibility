@@ -60,6 +60,7 @@ def mct(target, p_values, alpha, method, short_name, long_name, passed_fun):
     corrected_threshold = None
 
     with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
         reject, _, corrected_threshold_sidak, corrected_threshold_bonferroni = multipletests(
             p_values, alpha=alpha, method=method, is_sorted=True)
 
