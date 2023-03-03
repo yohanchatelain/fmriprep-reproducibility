@@ -13,7 +13,7 @@ def pce_test(reject, tests, alpha):
     return b.pvalue >= alpha
 
 
-def pce(target, p_values, alpha):
+def pce(target, alpha, p_values):
     '''
     Compute the Per-Comparison Error rate (uncorrected)
     '''
@@ -36,7 +36,7 @@ def pce(target, p_values, alpha):
     return nb_reject, N
 
 
-def pce_sig(target, ref, test, alpha):
+def pce_sig(target, alpha, ref, test):
     '''
     Compute the Per-Comparison Error rate (uncorrected) for significant bits
     '''
@@ -57,7 +57,7 @@ def pce_sig(target, ref, test, alpha):
     return nb_reject, N
 
 
-def mct(target, p_values, alpha, method, short_name, long_name, passed_fun):
+def mct(target, alpha, p_values, method, short_name, long_name, passed_fun):
     '''
     Generic method for compute Multiple Comparison Tests rate.
     '''

@@ -7,9 +7,8 @@ default_templates = ['MNI152NLin2009cAsym', 'MNI152NLin6Asym']
 
 def init_global_args(parser):
     parser.add_argument("--confidence", action="store",
-                        default=0.95, type=float, help="Confidence")
-    parser.add_argument("--population", action="store",
-                        type=float, default=NaN, help="Population")
+                        default=0.95, type=float, help="Confidence", nargs='+')
+
     parser.add_argument("--reference-template", action="store",
                         required=True, help="Reference template")
     parser.add_argument("--data-type", action="store",

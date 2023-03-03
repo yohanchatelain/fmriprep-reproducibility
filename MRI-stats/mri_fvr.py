@@ -14,7 +14,7 @@ import mri_gmm
 from mri_collect import stats_collect
 
 
-def compute_fvr(methods, target, *args, **info):
+def compute_fvr(methods, target, confidences, *args, **info):
     '''
     Compute the failing voxel ratio for the given target image
     for each method in methods
@@ -25,17 +25,20 @@ def compute_fvr(methods, target, *args, **info):
     def print_sep(): return print(mri_printer.sep_h3) if len(
         methods) > 1 else lambda: None
 
-    for method in methods:
-        if mri_printer.verbose:
-            print_sep()
+    for confidence in confidences:
+        alpha = 1 - confidence
+        for method in methods:
+            if mri_printer.verbose:
+                print_sep()
 
-        nb_reject, nb_test = method(target, *args)
-        stats_collect.append(**info,
-                             target=target.get_filename(),
-                             reject=nb_reject,
-                             tests=nb_test,
-                             method=method.__name__)
-        global_fp[method.__name__] = nb_reject, nb_test
+            nb_reject, nb_test = method(target, alpha, *args)
+            stats_collect.append(**info,
+                                 confidence=confidence,
+                                 target=target.get_filename(),
+                                 reject=nb_reject,
+                                 tests=nb_test,
+                                 method=method.__name__)
+            global_fp[method.__name__] = nb_reject, nb_test
     print_sep()
     return global_fp
 
@@ -43,15 +46,15 @@ def compute_fvr(methods, target, *args, **info):
 def compute_pvalues_stats(args, ith_target, target_T1, supermask,
                           mean, std, weights,  methods, **info):
 
-    alpha = 1 - args.confidence
+    confidences = args.confidence
     score = args.score
     fwh = args.smooth_kernel
     sample_size = info['sample_size']
-    info['confidence'] = args.confidence
 
     # For each target image, compute the Z-score associated
     target_filename = target_T1.get_filename()
-    target_masked = mri_image.get_masked_t1(target_T1, supermask, fwh, args.normalize)
+    target_masked = mri_image.get_masked_t1(
+        target_T1, supermask, fwh, args.normalize)
 
     score_name, score_fun = mri_stats.get_score(score=score)
     mri_printer.print_info(score_name, sample_size,
@@ -64,8 +67,8 @@ def compute_pvalues_stats(args, ith_target, target_T1, supermask,
     # Compute the failing-voxels ratio and store it into the global_fv dict
     fvr = compute_fvr(methods,
                       target_T1,
+                      confidences,
                       p_values,
-                      alpha,
                       **info)
 
     return fvr
@@ -81,15 +84,14 @@ def compute_sig_stats(args,
 
     sig_error = significantdigits.Error.Relative
     sig_method = significantdigits.Method.General
-    alpha = 1 - args.confidence
+    confidences = args.confidence
     fwh = args.smooth_kernel
     sample_size = info['sample_size']
     ref_sig = sig
 
-
-
     target_filename = target_T1.get_filename()
-    target_masked = mri_image.get_masked_t1(target_T1, supermask, fwh, args.normalize)
+    target_masked = mri_image.get_masked_t1(
+        target_T1, supermask, fwh, args.normalize)
 
     mri_printer.print_info('Sigbit', sample_size,
                            target_filename, ith_target)
@@ -100,7 +102,8 @@ def compute_sig_stats(args,
                                                     error=sig_error,
                                                     method=sig_method)
 
-    fvr = compute_fvr(methods, target_T1, ref_sig, test_sig, alpha, **info)
+    fvr = compute_fvr(methods, target_T1, confidences,
+                      ref_sig, test_sig, **info)
 
     return fvr
 
@@ -112,11 +115,6 @@ def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
     Args:
         @targets: list of target image encoded into Nifti1Image object
         @supermask: the union of the target brain masks into a numpy array
-        @mean: the mean of the reference brain images set into a numpy array
-        @N:The number of voxels True inside the supermask
-        @fuzzy_sample_size: The fuzzy sample size, equals to the reference set size
-        @dof: The degree of freedom, taken as fuzzy_sample_size - 1
-        @alpha: the 1 - confidence level
         @methods: the list of method to use to compute the FVR
     Return:
         A dictionnary that contains for each target the FVR for each method used.
@@ -124,14 +122,12 @@ def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
 
     dataset = args.reference_dataset
     subject = args.reference_subject
-    confidence = args.confidence
     sample_size = len(references_T1)
     fwh = args.smooth_kernel
 
     info = dict(dataset=dataset,
                 subject=subject,
                 sample_size=sample_size,
-                confidence=confidence,
                 fwh=fwh,
                 kth_round=kth_round,
                 nb_round=nb_round)
@@ -246,29 +242,19 @@ def compute_all_include_fvr(args, methods):
         template=args.reference_template,
         data_type=args.data_type)
 
-    reference_sample_size = len(reference_t1s)
-
-    print(f'Sample size: {reference_sample_size}')
     reference_masked, supermask = mri_image.mask_t1(
         reference_t1s, reference_masks,
         args.mask_combination,
         args.smooth_kernel,
         args.normalize)
-    mean = np.mean(reference_masked, axis=0)
-    std = np.std(reference_masked, axis=0)
-    alpha = 1 - args.confidence
 
-    fvr = compute_fvr_per_target(dataset=args.reference_dataset,
-                                 subject=args.reference_subject,
-                                 sample_size=reference_sample_size,
-                                 targets_T1=reference_t1s,
+    fvr = compute_fvr_per_target(args,
+                                 references_T1=reference_masked,
+                                 targets_T1=reference_masked,
                                  supermask=supermask,
-                                 mean=mean,
-                                 std=std,
-                                 fwh=args.smooth_kernel,
-                                 alpha=alpha,
                                  methods=methods,
-                                 score=args.score)
+                                 nb_round=1,
+                                 kth_round=1)
 
     return fvr
 
@@ -286,10 +272,10 @@ def compute_all_exclude_fvr(args, methods):
     print(f'Sample size: {reference_sample_size}')
 
     nb_reject, nb_tests = compute_k_fold_fvr(args,
-                             reference_T1=reference_t1s,
-                             reference_mask=reference_masks,
-                             nb_rounds=reference_sample_size,
-                             methods=methods)
+                                             reference_T1=reference_t1s,
+                                             reference_mask=reference_masks,
+                                             nb_rounds=reference_sample_size,
+                                             methods=methods)
 
     return nb_reject, nb_tests
 
@@ -321,7 +307,7 @@ def compute_one_fvr(args, methods):
 
     source_shape = reference_t1s[0].shape
     target_shape = target_t1s[0].shape
-    
+
     if source_shape != target_shape:
         if args.verbose:
             print('Resampling target on reference')
@@ -333,7 +319,6 @@ def compute_one_fvr(args, methods):
         for t in target_t1s:
             print('target shape', t.shape)
 
-        
     fvr = compute_fvr_per_target(args,
                                  references_T1=train_t1_masked,
                                  targets_T1=target_t1s,
@@ -346,19 +331,17 @@ def compute_one_fvr(args, methods):
 
 
 def compute_k_fold(args, methods):
-    normality_mask_path = mri_normality.run_test_normality(args)
     reference, supermask = mri_image.get_reference(
         prefix=args.reference_prefix,
         subject=args.reference_subject,
         dataset=args.reference_dataset,
         template=args.reference_template,
         data_type=args.data_type)
-    
+
     reference_sample_size = len(reference)
     nb_voxels_in_mask = np.count_nonzero(supermask)
 
     print(f'Sample size: {reference_sample_size}')
-    alpha = 1 - args.confidence
 
     fvr = compute_k_fold_fvr(args,
                              dataset=args.reference_dataset,
@@ -367,7 +350,6 @@ def compute_k_fold(args, methods):
                              k=args.k_fold_rounds,
                              reference=reference,
                              supermask=supermask,
-                             alpha=alpha,
                              nb_voxels_in_mask=nb_voxels_in_mask,
                              methods=methods)
 
