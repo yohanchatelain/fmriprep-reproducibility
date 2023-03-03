@@ -10,6 +10,7 @@ import nilearn.masking
 import mri_printer as mrip
 import mri_constants
 import mri_normality
+import tqdm
 
 '''
 Loader and dumper
@@ -128,15 +129,18 @@ def smooth_image(image, kernel_smooth):
     else:
         return image
 
+
 def resample_image(source, target):
     return np.array(
         [nilearn.image.resample_to_img(source, target)]
     )
 
+
 def resample_images(sources, target):
     return np.array(
         [nilearn.image.resample_to_img(source, target) for source in sources]
     )
+
 
 def get_preproc_re(subject, template,
                    preproc_ext=mri_constants.preproc_extension):
@@ -172,7 +176,7 @@ def get_reference(prefix, subject, dataset, template, data_type):
     if len(masks) == 0:
         print('No brain masks found')
         raise Exception('BrainMasksEmpty')
-    
+
     return images, masks
 
 
@@ -180,18 +184,22 @@ def get_masked_t1(t1, mask, smooth_kernel, normalize):
     if smooth_kernel == 0:
         smooth_kernel = None
     masked = nilearn.masking.apply_mask(imgs=t1,
-                                      mask_img=mask,
-                                      smoothing_fwhm=smooth_kernel)
+                                        mask_img=mask,
+                                        smoothing_fwhm=smooth_kernel)
     if normalize:
         masked = (masked - masked.min()) / (masked.max() - masked.min())
 
     return masked
-        
+
+
 def mask_t1(t1s, masks, mask_combination, smooth_kernel, normalize):
     supermask = combine_mask(masks, mask_combination)
     masked_t1s = map(lambda t1: get_masked_t1(
         t1, supermask, smooth_kernel, normalize), t1s)
-    return np.stack(masked_t1s), supermask
+    progress_bar = tqdm.tqdm(desc='Masking reference',
+                             iterable=masked_t1s,
+                             total=)
+    return np.stack(tqdm.tqdm(iterable=masked_t1s)), supermask
 
 
 def get_reference_gmm(gmm_prefix,

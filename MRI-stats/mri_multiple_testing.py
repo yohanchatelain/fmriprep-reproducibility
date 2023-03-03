@@ -2,8 +2,16 @@ import numpy as np
 from statsmodels.stats.multitest import multipletests
 import mri_printer
 import warnings
+from scipy.stats import norm
+import numpy as np
 
 # euler_constant = 0.5772156649015328
+
+
+def pce_test(reject, tests, alpha):
+    success = tests - reject
+    z = success + 0.5 - tests*(1-alpha) / np.sqrt(tests * alpha * (1-alpha))
+    return 2 * norm.sf(np.abs(z)) >= alpha
 
 
 def pce(target, p_values, alpha):
@@ -16,6 +24,7 @@ def pce(target, p_values, alpha):
     reject = p_values < threshold
     nb_reject = np.ma.sum(reject)
     ratio = reject/N
+    passed = pce_test(nb_reject, N, alpha)
 
     if mri_printer.verbose:
         mri_printer.print_name_method('Per-Comparison Error (Uncorrected)')
@@ -23,7 +32,7 @@ def pce(target, p_values, alpha):
         print(f'- Card(Reject)          = {nb_reject}')
         print(f'- Card(Voxels)          = {N}')
         print(f'- Card(Reject)/Card(Voxels) = {ratio:.2e} [{ratio*100:f}%]')
-    mri_printer.print_result(target, nb_reject, N, alpha, name)
+    mri_printer.print_result(target, nb_reject, N, alpha, passed, name)
 
     return nb_reject, N
 
