@@ -198,8 +198,10 @@ def mask_t1(t1s, masks, mask_combination, smooth_kernel, normalize):
         t1, supermask, smooth_kernel, normalize), t1s)
     progress_bar = tqdm.tqdm(desc='Masking reference',
                              iterable=masked_t1s,
-                             total=)
-    return np.stack(tqdm.tqdm(iterable=masked_t1s)), supermask
+                             unit='image',
+                             total=len(t1s),
+                             )
+    return np.stack(progress_bar), supermask
 
 
 def get_reference_gmm(gmm_prefix,
