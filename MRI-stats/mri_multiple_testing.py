@@ -95,7 +95,7 @@ def mct(target, alpha, p_values, method, short_name, long_name, passed_fun):
     return nb_reject, N
 
 
-def fwe_bonferroni(target, p_values, alpha):
+def fwe_bonferroni(target, alpha, p_values):
     '''
     Compute the failing voxels ratio using the Bonferonni correction
     '''
@@ -109,7 +109,7 @@ def fwe_bonferroni(target, p_values, alpha):
                passed_fun=passed_fun)
 
 
-def fwe_sidak(target, p_values, alpha):
+def fwe_sidak(target, alpha, p_values):
     '''
     Compute the failing voxels ratio using the Sidak correction
     '''
@@ -123,7 +123,7 @@ def fwe_sidak(target, p_values, alpha):
                passed_fun=passed_fun)
 
 
-def fwe_holm_sidak(target, p_values, alpha):
+def fwe_holm_sidak(target, alpha, p_values):
     '''
     Compute the failing voxels ratio using the Holm-Sidak correction
     '''
@@ -137,7 +137,7 @@ def fwe_holm_sidak(target, p_values, alpha):
                passed_fun=passed_fun)
 
 
-def fwe_holm_bonferroni(target, p_values, alpha):
+def fwe_holm_bonferroni(target, alpha, p_values):
     '''
     Compute the failing voxels ratio using the Holm-Bonferonni correction
     '''
@@ -151,7 +151,7 @@ def fwe_holm_bonferroni(target, p_values, alpha):
                passed_fun=passed_fun)
 
 
-def fwe_simes_hochberg(target, p_values, alpha):
+def fwe_simes_hochberg(target, alpha, p_values):
     '''
     Compute the failing voxels ratio using the Simes-Hochberg correction
     '''
@@ -165,7 +165,7 @@ def fwe_simes_hochberg(target, p_values, alpha):
                passed_fun=passed_fun)
 
 
-def fdr_BH(target, p_values, alpha):
+def fdr_BH(target, alpha, p_values):
     '''
     Compute the failing voxels ratio using the False Discovery Rate correction (Benjamini-Hochberg)
     '''
@@ -179,7 +179,7 @@ def fdr_BH(target, p_values, alpha):
                passed_fun=passed_fun)
 
 
-def fdr_BY(target, p_values, alpha):
+def fdr_BY(target, alpha, p_values):
     '''
     Compute the failing voxels ratio using the False Discovery Rate correction (Benjamini-Yekutieli)
     '''
@@ -193,7 +193,7 @@ def fdr_BY(target, p_values, alpha):
                passed_fun=passed_fun)
 
 
-def fdr_TSBH(target, p_values, alpha):
+def fdr_TSBH(target, alpha, p_values):
     '''
     Compute the failing voxels ratio using the False Discovery Rate correction (Two-stage Benjamini-Hochberg)
     '''
@@ -207,7 +207,7 @@ def fdr_TSBH(target, p_values, alpha):
                passed_fun=passed_fun)
 
 
-def fdr_TSBY(target, p_values, alpha):
+def fdr_TSBY(target, alpha, p_values):
     '''
     Compute the failing voxels ratio using the False Discovery Rate correction (Two-Stage Benjamini-Yekutieli)
     '''
