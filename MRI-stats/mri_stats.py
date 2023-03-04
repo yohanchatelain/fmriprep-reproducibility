@@ -67,21 +67,21 @@ def p_values_z_score(args, x, parameters, weights):
         else:
             _low = scipy.stats.norm.cdf(x, loc=mean, scale=std)
             _up = scipy.stats.norm.sf(x, loc=mean, scale=std)
-            return 2 * np.min(_low, _up, axis=0)
+            return 2 * np.min((_low, _up), axis=0)
     elif args.gaussian_type == 'skew':
         mean = parameters['loc']
         std = parameters['scale']
         a = parameters['a']
         _low = scipy.stats.skewnorm.cdf(x, a=a, loc=mean, scale=std)
         _up = scipy.stats.skewnorm.sf(x, a=a, loc=mean, scale=std)
-        return 2 * np.min(_low, _up, axis=0)
+        return 2 * np.min((_low, _up), axis=0)
     elif args.gaussian_type == 'general':
         mean = parameters['loc']
         std = parameters['scale']
         beta = parameters['beta']
         _low = scipy.stats.gennorm.cdf(x, beta=beta, loc=mean, scale=std)
         _up = scipy.stats.gennorm.sf(x, beta=beta, loc=mean, scale=std)
-        return 2 * np.min(_low, _up, axis=0)
+        return 2 * np.min((_low, _up), axis=0)
 
 
 def t_score(x, mean, std=None):
