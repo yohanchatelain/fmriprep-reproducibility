@@ -1,3 +1,4 @@
+import scipy
 from significantdigits import Error, Method
 import significantdigits
 import nilearn.masking
@@ -44,10 +45,9 @@ def compute_fvr(methods, target, confidences, *args, **info):
 
 
 def compute_pvalues_stats(args, ith_target, target_T1, supermask,
-                          mean, std, weights,  methods, **info):
+                          parameters, weights,  methods, **info):
 
     confidences = args.confidence
-    score = args.score
     fwh = args.smooth_kernel
     sample_size = info['sample_size']
 
@@ -56,12 +56,12 @@ def compute_pvalues_stats(args, ith_target, target_T1, supermask,
     target_masked = mri_image.get_masked_t1(
         target_T1, supermask, fwh, args.normalize)
 
-    score_name, score_fun = mri_stats.get_score(score=score)
+    score_name, score_fun = mri_stats.get_score(args)
     mri_printer.print_info(score_name, sample_size,
                            target_filename, ith_target)
 
     # Turn Z-score into p-values and sort them into 1D array
-    p_values = score_fun(target_masked, mean, std, weights)
+    p_values = score_fun(target_masked, parameters, weights)
     p_values.sort()
 
     # Compute the failing-voxels ratio and store it into the global_fv dict
@@ -150,9 +150,24 @@ def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
                                                    axis=0,
                                                    error=sig_error,
                                                    method=sig_method)
-    else:
+    elif args.gaussian_type == 'skew':
+        _parameters = np.fromiter((scipy.stats.skewnorm.fit(
+            references_T1[:, i]) for i in range(references_T1.shape[-1])))
+        parameters = dict(a=_parameters[..., 0],
+                          loc=_parameters[..., 1],
+                          scale=_parameters[..., 2])
+
+    elif args.gaussian_type == 'general':
+        _parameters = np.fromiter((scipy.stats.gennorm.fit(
+            references_T1[:, i]) for i in range(references_T1.shape[-1])))
+        parameters = dict(beta=_parameters[..., 0],
+                          loc=_parameters[..., 1],
+                          scale=_parameters[..., 2])
+
+    elif args.gaussian_type == 'normal':
         mean = np.mean(references_T1, axis=0)
         std = np.std(references_T1, axis=0)
+        parameters = dict(loc=mean, scale=std)
         weights = 1
 
     fvr_per_target = {}
@@ -173,8 +188,7 @@ def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
                                         ith_target=i,
                                         target_T1=target_T1,
                                         supermask=supermask,
-                                        mean=mean,
-                                        std=std,
+                                        parameters=parameters,
                                         weights=weights,
                                         methods=methods,
                                         **info)

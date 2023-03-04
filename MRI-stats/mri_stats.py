@@ -49,22 +49,39 @@ def z_score(x, mean, std):
 
 
 def gmm_cdf(x, weights, mean, std):
-
     return weights[0] * scipy.stats.norm.cdf(x, loc=mean[0], scale=std[0]) + \
         weights[1] * scipy.stats.norm.cdf(x, loc=mean[1], scale=std[1])
 
 
-def p_values_z_score(x, mean, std, weights):
+def p_values_z_score(args, x, parameters, weights):
     '''
     Compute p-values from Z-score
+    parameters: dict(loc=, scale=)
     '''
-
-    if mean.ndim > 1:
-        cdf = gmm_cdf(x, weights, mean, std)
-        return 2 * np.min((cdf, 1-cdf), axis=0)
-    else:
-        z = np.abs((x-mean)/std)
-        return scipy.stats.norm.sf(z) * 2
+    if args.gaussian_type == 'normal':
+        mean = parameters['loc']
+        std = parameters['std']
+        if mean.ndim > 1:
+            cdf = gmm_cdf(x, weights, mean, std)
+            return 2 * np.min((cdf, 1-cdf), axis=0)
+        else:
+            _low = scipy.stats.norm.cdf(x, loc=mean, scale=std)
+            _up = scipy.stats.norm.sf(x, loc=mean, scale=std)
+            return 2 * np.min(_low, _up, axis=0)
+    elif args.gaussian_type == 'skew':
+        mean = parameters['loc']
+        std = parameters['scale']
+        a = parameters['a']
+        _low = scipy.stats.skewnorm.cdf(x, a=a, loc=mean, scale=std)
+        _up = scipy.stats.skewnorm.sf(x, a=a, loc=mean, scale=std)
+        return 2 * np.min(_low, _up, axis=0)
+    elif args.gaussian_type == 'general':
+        mean = parameters['loc']
+        std = parameters['scale']
+        beta = parameters['beta']
+        _low = scipy.stats.gennorm.cdf(x, beta=beta, loc=mean, scale=std)
+        _up = scipy.stats.gennorm.sf(x, beta=beta, loc=mean, scale=std)
+        return 2 * np.min(_low, _up, axis=0)
 
 
 def t_score(x, mean, std=None):
@@ -83,14 +100,14 @@ def p_values_t_score(x, mean, std=None):
     return scipy.stats.t.sf(np.abs(t), df=len(x)-1)*2
 
 
-def get_score(score='z-score'):
+def get_score(args):
     '''
     Get score
     '''
-    if score == 'z-score':
+    if args.score == 'z-score':
         score_name = 'Z-score'
         score = p_values_z_score
-    elif score == 't-score':
+    elif args.score == 't-score':
         score_name = 'T-score'
         score = p_values_t_score
     else:
