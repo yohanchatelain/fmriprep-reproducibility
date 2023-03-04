@@ -60,7 +60,7 @@ def p_values_z_score(args, x, parameters, weights):
     '''
     if args.gaussian_type == 'normal':
         mean = parameters['loc']
-        std = parameters['std']
+        std = parameters['scale']
         if mean.ndim > 1:
             cdf = gmm_cdf(x, weights, mean, std)
             return 2 * np.min((cdf, 1-cdf), axis=0)
