@@ -1,3 +1,4 @@
+import tqdm
 import scipy
 from significantdigits import Error, Method
 import significantdigits
@@ -153,7 +154,7 @@ def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
                                                    method=sig_method)
     elif args.gaussian_type == 'skew':
         _parameters = np.fromiter(chain.from_iterable(scipy.stats.skewnorm.fit(
-            references_T1[..., i]) for i in range(references_T1.shape[-1])), dtype=np.float64)
+            references_T1[..., i]) for i in tqdm.tqdm(iterable=range(references_T1.shape[-1]), total=references_T1.shape[-1])), dtype=np.float64)
         parameters = dict(a=_parameters[..., 0],
                           loc=_parameters[..., 1],
                           scale=_parameters[..., 2])
