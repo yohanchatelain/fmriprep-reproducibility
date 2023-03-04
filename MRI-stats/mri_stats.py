@@ -92,7 +92,7 @@ def t_score(x, mean, std=None):
     return np.abs(x-mean) / sem
 
 
-def p_values_t_score(x, mean, std=None):
+def p_values_t_score(args, x, parameters):
     '''
     Compute p-values from T-score
     '''

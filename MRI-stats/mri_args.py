@@ -48,7 +48,9 @@ def init_global_args(parser):
     parser.add_argument('--compare-significant-digits',
                         action='store_true', help='Compare significant digits maps')
     parser.add_argument(
-        '--gaussian-type', choices=['normal', 'skew', 'general'], help='Gaussian normal distribution type')
+        '--gaussian-type', choices=['normal', 'skew', 'general'],
+        default='normal',
+        help='Gaussian normal distribution type')
 
 
 def init_module_all_include(parser):

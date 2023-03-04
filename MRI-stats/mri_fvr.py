@@ -61,7 +61,7 @@ def compute_pvalues_stats(args, ith_target, target_T1, supermask,
                            target_filename, ith_target)
 
     # Turn Z-score into p-values and sort them into 1D array
-    p_values = score_fun(target_masked, parameters, weights)
+    p_values = score_fun(args, target_masked, parameters, weights)
     p_values.sort()
 
     # Compute the failing-voxels ratio and store it into the global_fv dict
