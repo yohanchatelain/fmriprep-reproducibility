@@ -132,7 +132,7 @@ def parallel_fit_normal(X, fit):
     with multiprocessing.Pool() as pool:
 
         _parameters = np.fromiter(
-            pool.map_async(func, _iterable, chunksize=500))
+            pool.map_async(func, _iterable, chunksize=500), dtype=np.float64)
 
         parameters = dict(beta=_parameters[..., 0],
                           loc=_parameters[..., 1],
