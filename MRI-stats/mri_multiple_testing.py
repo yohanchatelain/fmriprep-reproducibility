@@ -22,8 +22,8 @@ def pce(target, alpha, p_values):
     threshold = alpha
     reject = p_values < threshold
     nb_reject = np.ma.sum(reject)
-    ratio = reject/N
-    passed = pce_test(nb_reject, N, alpha)
+    ratio = reject / N
+    passed = ratio <= alpha
 
     if mri_printer.verbose:
         mri_printer.print_name_method('Per-Comparison Error (Uncorrected)')
@@ -44,8 +44,8 @@ def pce_sig(target, alpha, ref, test):
     N = ref.size
     reject = test < ref
     nb_reject = np.ma.sum(reject)
-    ratio = nb_reject/N
-    passed = ratio < alpha
+    ratio = nb_reject / N
+    passed = ratio <= alpha
 
     if mri_printer.verbose:
         mri_printer.print_name_method('Per-Comparison Error (Uncorrected)')
