@@ -151,7 +151,7 @@ def normalize_image(image):
 
 
 def get_preproc_re(subject, template,
-                   preproc_ext=mri_constants.preproc_extension):
+                   preproc_ext=mri_constants.t1_preproc_extension):
     return f'{subject}_space-{template}{preproc_ext}'
 
 
