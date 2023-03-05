@@ -123,16 +123,18 @@ def sequential_fit_normal(X, fit):
 
 
 def parallel_fit_normal(X, fit):
-    def func(i):
-        return chain.from_iterable(fit(X[..., i]))
+    # def func(i):
+    #     return chain.from_iterable(fit(X[..., i]))
 
-    _iterable = tqdm.tqdm(iterable=range(X.shape[-1]),
-                          total=X.shape[-1])
+    # _iterable = tqdm.tqdm(iterable=range(X.shape[-1]),
+    #                       total=X.shape[-1])
+
+    _iterable = tqdm.tqdm(np.swapaxes(X, 0, 1))
 
     with multiprocessing.Pool() as pool:
 
         _parameters = np.fromiter(
-            pool.map(func, _iterable, chunksize=500), dtype=np.float64)
+            pool.map(fit, _iterable, chunksize=500), dtype=np.float64)
 
         parameters = dict(beta=_parameters[..., 0],
                           loc=_parameters[..., 1],
