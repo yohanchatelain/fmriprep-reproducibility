@@ -176,6 +176,7 @@ def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
                 kth_round=kth_round,
                 nb_round=nb_round)
 
+    weights = 1
     if args.gmm:
         if args.verbose:
             print("Use GMM model")
@@ -214,7 +215,6 @@ def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
         mean = np.mean(references_T1, axis=0)
         std = np.std(references_T1, axis=0)
         parameters = dict(loc=mean, scale=std)
-        weights = 1
 
     fvr_per_target = {}
     for i, target_T1 in enumerate(targets_T1):
