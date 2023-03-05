@@ -134,7 +134,7 @@ def parallel_fit_normal(X, fit):
     with multiprocessing.Pool() as pool:
 
         _parameters = np.fromiter(
-            pool.map(fit, _iterable, chunksize=500), dtype=np.float64)
+            chain.from_iterable(pool.map(fit, _iterable, chunksize=500)), dtype=np.float64)
 
         parameters = dict(beta=_parameters[..., 0],
                           loc=_parameters[..., 1],
@@ -142,6 +142,14 @@ def parallel_fit_normal(X, fit):
         return parameters
 
     return None
+
+
+def skewnorm_fit(X):
+    return chain.from_iterable(scipy.stats.skewnorm.fit(X))
+
+
+def gennorm_fit(X):
+    return chain.from_iterable(scipy.stats.gennorm.fit(X))
 
 
 def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
