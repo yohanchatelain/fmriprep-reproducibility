@@ -56,7 +56,7 @@ def __label_msg(passed):
 
 def print_result(target, reject, tests, alpha, passed, name=None):
     name_msg = __name_msg(name)
-    label_msg = __label_msg(passed)
+    label_msg =     (passed)
     ratio_msg = __ratio_msg(alpha, reject, tests, passed)
     filename_msg = target.get_filename()
 

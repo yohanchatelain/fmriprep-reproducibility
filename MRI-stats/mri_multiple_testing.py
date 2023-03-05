@@ -22,7 +22,7 @@ def pce(target, alpha, p_values):
     threshold = alpha
     reject = p_values < threshold
     nb_reject = np.ma.sum(reject)
-    ratio = reject / N
+    ratio = nb_reject / N
     passed = ratio <= alpha
 
     if mri_printer.verbose:
