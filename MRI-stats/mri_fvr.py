@@ -153,15 +153,19 @@ def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
                                                    error=sig_error,
                                                    method=sig_method)
     elif args.gaussian_type == 'skew':
+        _iterable = tqdm.tqdm(iterable=range(references_T1.shape[-1]),
+                              total=references_T1.shape[-1])
         _parameters = np.fromiter(chain.from_iterable(scipy.stats.skewnorm.fit(
-            references_T1[..., i]) for i in tqdm.tqdm(iterable=range(references_T1.shape[-1]), total=references_T1.shape[-1])), dtype=np.float64)
+            references_T1[..., i]) for i in _iterable), dtype=np.float64)
         parameters = dict(a=_parameters[..., 0],
                           loc=_parameters[..., 1],
                           scale=_parameters[..., 2])
 
     elif args.gaussian_type == 'general':
+        _iterable = tqdm.tqdm(iterable=range(references_T1.shape[-1]),
+                              total=references_T1.shape[-1])
         _parameters = np.fromiter(chain.from_iterable(scipy.stats.gennorm.fit(
-            references_T1[..., i]) for i in range(references_T1.shape[-1])), dtype=np.float64)
+            references_T1[..., i]) for i in _iterable), dtype=np.float64)
         parameters = dict(beta=_parameters[..., 0],
                           loc=_parameters[..., 1],
                           scale=_parameters[..., 2])
