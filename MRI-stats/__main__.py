@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
+import mri_snr
 import warnings
 
 import mri_args
@@ -71,6 +72,10 @@ def run_distance(args):
     mri_distance.main(args)
 
 
+def run_snr(args):
+    mri_snr.main(args)
+
+
 tests = {
     'all-include': run_all_include,
     'all-exclude': run_all_exclude,
@@ -80,6 +85,7 @@ tests = {
     'stats': run_stats,
     'gmm': run_gmm,
     'distance': run_distance,
+    'snr': run_snr,
 }
 
 

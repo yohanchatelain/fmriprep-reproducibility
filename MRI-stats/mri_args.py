@@ -141,6 +141,14 @@ def init_module_distance(parser):
     init_global_args(subparser)
 
 
+def init_module_snr(parser):
+    msg = """
+    Submodule for computing SNR
+    """
+    subparser = parser.add_parser("snr", help=msg)
+    init_global_args(subparser)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description='mri-stats', prog='mri-stats')
     subparser = parser.add_subparsers(title='MRI-stats submodules',
@@ -154,6 +162,7 @@ def parse_args():
     init_module_stats(subparser)
     init_module_gmm(subparser)
     init_module_distance(subparser)
+    init_module_snr(subparser)
 
     args, _ = parser.parse_known_args()
 

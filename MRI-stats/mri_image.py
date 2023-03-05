@@ -142,6 +142,14 @@ def resample_images(sources, target):
     )
 
 
+def normalize_image(image):
+    voxels = image.get_fdata()
+    normalized_image = (voxels - voxels.min()) / (voxels.max() - voxels.min())
+    new = nibabel.Nifti1Image(normalized_image, image.affine)
+    new.set_filename(image.get_filename())
+    return new
+
+
 def get_preproc_re(subject, template,
                    preproc_ext=mri_constants.preproc_extension):
     return f'{subject}_space-{template}{preproc_ext}'
