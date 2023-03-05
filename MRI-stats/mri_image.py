@@ -167,7 +167,7 @@ def get_paths(prefix, dataset, subject, data_type):
     return paths
 
 
-def get_reference(prefix, subject, dataset, template, data_type, normalize,
+def get_reference(prefix, subject, dataset, template, data_type,
                   reference_ext=mri_constants.t1_preproc_extension):
     '''
     Returns T1 + mask images for given prefix, subject and dataset
