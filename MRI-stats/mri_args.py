@@ -51,6 +51,8 @@ def init_global_args(parser):
         '--gaussian-type', choices=['normal', 'skew', 'general'],
         default='normal',
         help='Gaussian normal distribution type')
+    parser.add_argument('--parallel-fitting',
+                        action='store_true', help='Parallel fitting')
 
 
 def init_module_all_include(parser):

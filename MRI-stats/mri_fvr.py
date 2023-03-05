@@ -15,6 +15,7 @@ import mri_stats
 import mri_gmm
 from mri_collect import stats_collect
 from itertools import chain
+import multiprocessing
 
 
 def compute_fvr(methods, target, confidences, *args, **info):
@@ -110,6 +111,37 @@ def compute_sig_stats(args,
     return fvr
 
 
+def sequential_fit_normal(X, fit):
+    _iterable = tqdm.tqdm(iterable=range(X.shape[-1]),
+                          total=X.shape[-1])
+    _parameters = np.fromiter(chain.from_iterable(fit(
+        X[..., i]) for i in _iterable), dtype=np.float64)
+    parameters = dict(a=_parameters[..., 0],
+                      loc=_parameters[..., 1],
+                      scale=_parameters[..., 2])
+    return parameters
+
+
+def parallel_fit_normal(X, fit):
+    def func(i):
+        return chain.from_iterable(fit(X[..., i]))
+
+    _iterable = tqdm.tqdm(iterable=range(X.shape[-1]),
+                          total=X.shape[-1])
+
+    with multiprocessing.Pool() as pool:
+
+        _parameters = np.fromiter(
+            pool.map_async(func, _iterable, chunksize=500))
+
+        parameters = dict(beta=_parameters[..., 0],
+                          loc=_parameters[..., 1],
+                          scale=_parameters[..., 2])
+        return parameters
+
+    return None
+
+
 def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
                            methods, nb_round=None, kth_round=None):
     '''
@@ -153,22 +185,20 @@ def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
                                                    error=sig_error,
                                                    method=sig_method)
     elif args.gaussian_type == 'skew':
-        _iterable = tqdm.tqdm(iterable=range(references_T1.shape[-1]),
-                              total=references_T1.shape[-1])
-        _parameters = np.fromiter(chain.from_iterable(scipy.stats.skewnorm.fit(
-            references_T1[..., i]) for i in _iterable), dtype=np.float64)
-        parameters = dict(a=_parameters[..., 0],
-                          loc=_parameters[..., 1],
-                          scale=_parameters[..., 2])
+        if args.parallel_fitting:
+            parameters = parallel_fit_normal(
+                references_T1, scipy.stats.skewnorm.fit)
+        else:
+            parameters = sequential_fit_normal(
+                references_T1, scipy.stats.skewnorm.fit)
 
     elif args.gaussian_type == 'general':
-        _iterable = tqdm.tqdm(iterable=range(references_T1.shape[-1]),
-                              total=references_T1.shape[-1])
-        _parameters = np.fromiter(chain.from_iterable(scipy.stats.gennorm.fit(
-            references_T1[..., i]) for i in _iterable), dtype=np.float64)
-        parameters = dict(beta=_parameters[..., 0],
-                          loc=_parameters[..., 1],
-                          scale=_parameters[..., 2])
+        if args.parallel_fitting:
+            parameters = parallel_fit_normal(
+                references_T1, scipy.stats.gennorm.fit)
+        else:
+            parameters = sequential_fit_normal(
+                references_T1, scipy.stats.gennorm.fit)
 
     elif args.gaussian_type == 'normal':
         mean = np.mean(references_T1, axis=0)
@@ -254,7 +284,7 @@ def compute_all_include_fvr(args, methods):
     if args.verbose:
         print('In compute_all_include_fvr')
 
-    #normality_mask_path = mri_normality.run_test_normality(args)
+    # normality_mask_path = mri_normality.run_test_normality(args)
     reference_t1s, reference_masks = mri_image.get_reference(
         prefix=args.reference_prefix,
         subject=args.reference_subject,
