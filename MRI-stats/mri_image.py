@@ -137,9 +137,12 @@ def resample_image(source, target):
 
 
 def resample_images(sources, target):
-    return np.array(
-        [nilearn.image.resample_to_img(source, target) for source in sources]
-    )
+    resampled_images = []
+    for source in sources:
+        resampled = nilearn.image.resample_to_img(source, target)
+        resampled.set_filename(source.get_filename())
+        resampled_images.append(resampled)
+    return np.array(resampled_images)
 
 
 def normalize_image(image):
