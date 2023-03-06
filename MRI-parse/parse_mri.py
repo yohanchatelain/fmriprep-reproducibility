@@ -1,3 +1,4 @@
+import sys
 import argparse
 import glob
 import os
@@ -102,6 +103,33 @@ def get_pce(args, df, alpha, alternative='two-sided', ratio=False):
         pvalues = df.groupby(indexes).agg(list).drop(drop, axis=1).apply(
             lambda t: ttest(t.fvr, 1 - t.name[2]), axis=1, result_type='expand')
         return pvalues > alpha
+
+
+def get_pce_deviation(args, df):
+    df = df[df['method'] == 'pce']
+
+    indexes = ['prefix',  'dataset', 'subject',
+               'confidence',
+               'fwh',
+               'sample_size']
+    drop = ['kth_round', 'nb_round', 'target']
+    print(df)
+    df['alpha'] = 1 - df['confidence']
+    df['positive'] = df['reject'] / df['tests']
+    x = df.drop(drop, axis=1).groupby(indexes).agg(
+        [np.mean, np.var, list]).apply(lambda t: t)
+    print(x)
+    x['neff'] = (x['alpha']['mean'] *
+                 (1-x['alpha']['mean'])) / x['positive']['var']
+    y = x[x['positive']['mean'] != 0]
+    print('y', y)
+    z = y.apply(lambda t: scipy.stats.norm.sf(
+        t['positive']['list'], loc=t['alpha']['mean'], scale=1/t['neff']), axis=1)
+    # print(z)
+
+    print('z', z.groupby(indexes).apply(
+        lambda t: (np.mean(t[-1]), np.std(t[-1]))))
+    sys.exit(1)
 
 
 def get_mct(args, df, alpha, alternative='two-sided', ratio=False):
@@ -396,6 +424,51 @@ def plot_exclude(args):
                    ratio=args.ratio)
 
 
+def plot_deviation_exclude(args):
+    pd.set_option('display.max_rows', None)
+    #pd.set_option('display.max_columns', None)
+    #pd.set_option('display.width', None)
+    #pd.set_option('max_colwidth', -1)
+
+    references = args.reference
+    show = args.show
+    alpha = args.meta_alpha
+
+    ext = '_ratio' if args.ratio else ''
+
+    dfs = []
+
+    for reference in references:
+        paths = glob.glob(f'{reference}/*.pkl')
+        ldf = []
+        for path in paths:
+            with open(path, 'rb') as fib:
+                pkl = pickle.load(fib)
+                df = pd.DataFrame(pkl)
+                df.insert(0, "prefix", reference)
+                ldf.append(df)
+        dfs.append(pd.concat(ldf))
+
+    pce_tests, mct_tests = [], []
+    for df in dfs:
+        pce_tests.append(
+            get_pce_deviation(args, df))
+
+    for reference, pce_test in zip(references, pce_tests):
+        print('=' * 30)
+        print(reference)
+        (alpha_star, fwh_star) = get_optimum(pce_test)
+        print(f'pce alpha*={alpha_star}, fwh*={fwh_star}')
+        name = reference.replace(os.path.sep, '_')
+        pce_test.to_csv(f'{args.test}_{name}_pce{ext}.csv')
+
+    plotly_backend(args,
+                   pce_tests, mct_tests, show,
+                   no_pce=args.no_pce,
+                   no_mct=args.no_mct,
+                   ratio=args.ratio)
+
+
 def plot_one(args):
     plot_exclude(args)
 
@@ -417,6 +490,8 @@ def parse_args():
                         help='Do not show MCT')
     parser.add_argument('--show-nan', action='store_true', help='Show NaN')
     parser.add_argument('--ratio', action='store_true', help='Print ratio')
+    parser.add_argument('--deviation', action='store_true',
+                        help='Compute deviation statistics')
     return parser.parse_args()
 
 
@@ -426,6 +501,9 @@ if '__main__' == __name__:
         print(args)
 
     elif args.test == 'exclude':
-        plot_exclude(args)
+        if args.deviation:
+            plot_deviation_exclude(args)
+        else:
+            plot_exclude(args)
     elif args.test == 'one':
         plot_one(args)
