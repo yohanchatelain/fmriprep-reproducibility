@@ -42,7 +42,7 @@ def __name_msg(name):
 
 
 def __ratio_msg(alpha, reject, tests, passed):
-    ratio = reject/tests
+    ratio = reject / tests
     nb_digits = int(np.ceil(np.log10(tests)))
     reject_formatted = f'{reject:>{nb_digits}}'
     ratio_msg = f'[α={alpha:.4f}|{ratio*100:>6.3f}%|{reject_formatted}/{tests}]'
@@ -56,7 +56,7 @@ def __label_msg(passed):
 
 def print_result(target, reject, tests, alpha, passed, name=None):
     name_msg = __name_msg(name)
-    label_msg =     (passed)
+    label_msg = (passed)
     ratio_msg = __ratio_msg(alpha, reject, tests, passed)
     filename_msg = target.get_filename()
 

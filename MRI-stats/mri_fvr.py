@@ -152,6 +152,30 @@ def gennorm_fit(X):
     return chain.from_iterable(scipy.stats.gennorm.fit(X))
 
 
+def get_info(args, **extra_kwargs):
+
+    reference_dataset = args.reference_dataset
+    reference_subject = args.reference_subject
+    reference_template = args.reference_template
+
+    target_dataset = args.target_dataset if args.target_dataset else reference_dataset
+    target_subject = args.target_subject if args.target_subject else reference_subject
+    target_template = args.target_template if args.target_template else reference_template
+
+    fwhm = args.fwhm
+    mask = args.combination_mask
+
+    return dict(reference_dataset=reference_dataset,
+                reference_subject=reference_subject,
+                reference_template=reference_template,
+                target_dataset=target_dataset,
+                target_subject=target_subject,
+                target_template=target_template,
+                fwhm=fwhm,
+                mask=mask,
+                **extra_kwargs)
+
+
 def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
                            methods, nb_round=None, kth_round=None):
     '''
@@ -164,17 +188,10 @@ def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
         A dictionnary that contains for each target the FVR for each method used.
     '''
 
-    dataset = args.reference_dataset
-    subject = args.reference_subject
     sample_size = len(references_T1)
-    fwh = args.smooth_kernel
 
-    info = dict(dataset=dataset,
-                subject=subject,
-                sample_size=sample_size,
-                fwh=fwh,
-                kth_round=kth_round,
-                nb_round=nb_round)
+    info = get_info(args, sample_size=sample_size,
+                    kth_round=kth_round, nb_round=nb_round)
 
     weights = 1
     if args.gmm:

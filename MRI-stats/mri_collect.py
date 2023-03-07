@@ -13,20 +13,8 @@ class Statistic:
         else:
             self._name = name
 
-    def append(self, dataset, subject, confidence, sample_size,
-               target, reject, tests, method, fwh, nb_round=None, kth_round=None):
-        _row = dict(dataset=dataset,
-                    subject=subject,
-                    confidence=confidence,
-                    sample_size=sample_size,
-                    target=target,
-                    method=method,
-                    fwh=fwh,
-                    reject=reject,
-                    tests=tests,
-                    nb_round=nb_round,
-                    kth_round=kth_round)
-        self._data.append(_row)
+    def append(self, **kwargs):
+        self._data.append(kwargs)
 
     def dump(self):
         with open(self._name, 'wb') as fo:
