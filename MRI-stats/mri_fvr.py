@@ -163,7 +163,7 @@ def get_info(args, **extra_kwargs):
     target_template = args.target_template if args.target_template else reference_template
 
     fwhm = args.smooth_kernel
-    mask = args.combination_mask
+    mask = args.mask_combination
 
     return dict(reference_dataset=reference_dataset,
                 reference_subject=reference_subject,
