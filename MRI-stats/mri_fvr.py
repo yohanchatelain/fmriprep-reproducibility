@@ -392,7 +392,7 @@ def compute_one_fvr(args, methods):
     source_affine = reference_t1s[0].affine
     target_affine = reference_t1s[0].affine
 
-    if source_shape != target_shape or source_affine != target_affine:
+    if source_shape != target_shape or np.any(source_affine != target_affine):
         if args.verbose:
             print('Resampling target on reference')
             print('source shape', source_shape)
