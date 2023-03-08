@@ -158,9 +158,14 @@ def get_info(args, **extra_kwargs):
     reference_subject = args.reference_subject
     reference_template = args.reference_template
 
-    target_dataset = args.target_dataset if args.target_dataset else reference_dataset
-    target_subject = args.target_subject if args.target_subject else reference_subject
-    target_template = args.target_template if args.target_template else reference_template
+    if 'target_dataset' in args:
+        target_dataset = args.target_dataset if args.target_dataset else reference_dataset
+        target_subject = args.target_subject if args.target_subject else reference_subject
+        target_template = args.target_template if args.target_template else reference_template
+    else:
+        target_dataset = reference_dataset
+        target_subject = reference_subject
+        target_template = reference_template
 
     fwhm = args.smooth_kernel
     mask = args.mask_combination
