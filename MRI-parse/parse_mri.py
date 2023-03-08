@@ -1,3 +1,4 @@
+import itertools
 import sys
 import argparse
 import glob
@@ -8,11 +9,10 @@ from unicodedata import category
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
+import polars as pd
 import plotly.express as px
 import plotly.io as pio
 import scipy.stats
-import seaborn as sns
 from plotly.subplots import make_subplots
 
 pio.kaleido.scope.mathjax = None
@@ -46,20 +46,75 @@ ref_subjects = [
     'sub-CTS210'
 ]
 
+pandas_library = pd.__name__
+
+
+def filter(table, column_name, column_value):
+    if pandas_library == 'pandas':
+        return table[table[column_name] == column_value]
+    elif pandas_library == 'polars':
+        return table.filter((pd.col(column_name) == column_value))
+    else:
+        raise Exception(f'Unkown table library {pd.__name_}')
+
+
+def insert(table, column_name, column_value):
+    if pandas_library == 'pandas':
+        table.insert(0, column_name, column_value)
+        return table
+    elif pandas_library == 'polars':
+        return table.with_columns(
+            pd.Series(name=column_name, values=column_value))
+    else:
+        raise Exception(f'Unkown table library {pd.__name_}')
+
+
+def add_prefix(table, prefix):
+    if pandas_library == 'pandas':
+        return insert(table, 'prefix', prefix)
+    elif pandas_library == 'polars':
+        return insert(table, 'prefix', [prefix])
+    else:
+        raise Exception(f'Unkown table library {pd.__name_}')
+
+
+def drop_column(table, columns_name):
+    if pandas_library == 'pandas':
+        return table.drop(columns_name, axis=1)
+    elif pandas_library == 'polars':
+        return table.drop(columns_name)
+    else:
+        raise Exception(f'Unkown table library {pd.__name_}')
+
+
+string_methods = {'pandas': {'endswith': 'endswith', 'contains': '__contains__'},
+                  'polars': {'endswith': 'ends_with', 'contains': 'contains'}}
+
+
+def filter_string(table, column_name, regexp, method):
+    if pandas_library == 'pandas':
+        if method == 'contains':
+            return filter_string_contains(table, column_name, regexp)
+    elif pandas_library == 'polars':
+        if method == 'contains':
+            return filter_string_contains(table, column_name, regexp)
+    else:
+        raise Exception(f'Unkown table library {pd.__name_}')
+
+
+def filter_string_contains(table, column_name, regexp):
+    if pandas_library == 'pandas':
+        return table[regexp in table[column_name]]
+    elif pandas_library == 'polars':
+        return table.filter(pd.col(column_name).str.contains(regexp))
+    else:
+        raise Exception(f'Unkown table library {pd.__name_}')
+
 
 def open_file(filename):
     with open(filename, 'rb') as fi:
         return pickle.load(fi)
     return None
-
-
-def confidence_interval(data, confidence=0.95):
-    dist = NormalDist.from_samples(data)
-    z = NormalDist().inv_cdf((1 + confidence) / 2.)
-    h = dist.stdev * z / ((len(data) - 1) ** .5)
-    return dist.mean - h, dist.mean + h
-
-#   one_0.95_reference_rr_ds002338_sub-xp201_target_rs_ds002338_sub-xp201.pkl
 
 
 def get_test(test, confidence,
@@ -77,7 +132,7 @@ def get_test(test, confidence,
     return include
 
 
-def get_pce(args, df, alpha, alternative='two-sided', ratio=False):
+def get_pce_exclude(args, df, alpha, alternative='two-sided', ratio=False):
     '''
     Return tests that passes
     '''
@@ -88,12 +143,10 @@ def get_pce(args, df, alpha, alternative='two-sided', ratio=False):
 
     indexes = ['dataset', 'subject', 'confidence', 'fwh', 'sample_size']
 
-    # try:
-    #     drop = ['k_fold', 'k_round', 'target', 'method']
-    #     pvalues = df.groupby(indexes).agg(list).drop(drop, axis=1).apply(
-    #         lambda t: ttest(t.fvr, 1 - t.name[2]), axis=1, result_type='expand')
-    # except KeyError:
     drop = ['kth_round', 'nb_round', 'target', 'method']
+
+    df.insert(0, 'alpha', value=1 - df['confidence'])
+    df.insert(0, 'fvr', value=df['reject'] / df['tests'])
 
     if args.ratio:
         ratio = df.groupby(indexes).agg(list).drop(drop, axis=1).apply(
@@ -101,8 +154,46 @@ def get_pce(args, df, alpha, alternative='two-sided', ratio=False):
         return ratio
     else:
         pvalues = df.groupby(indexes).agg(list).drop(drop, axis=1).apply(
-            lambda t: ttest(t.fvr, 1 - t.name[2]), axis=1, result_type='expand')
+            lambda t: ttest(t.fvr, t.alpha[0]), axis=1, result_type='expand')
         return pvalues > alpha
+
+
+def get_pce_one(args, df, alpha, ratio=False):
+
+    df = filter(df, 'method', 'pce')
+
+    indexes = ['dataset', 'subject', 'confidence',
+               'fwh',  'target']
+    drop = ['kth_round', 'nb_round', 'method',
+            'sample_size', 'reject', 'tests']
+
+    df = insert(df, 'success', df['reject'] /
+                df['tests'] <= (1 - df['confidence']))
+
+    df = drop_column(df.groupby(indexes).apply(lambda t: t), drop)
+
+    return filter_string_contains(df, 'target', '.1/fmriprep')
+
+
+def get_mct_one(args, df, alpha, ratio=False):
+
+    df = df[df['method'] != 'pce']
+    df = df[df['method'] != 'fdr_TSBY']
+    df = df[df['method'] != 'fdr_TSBH']
+    df = df[df['method'] != 'fdr_BH']
+    df = df[df['method'] != 'fwe_simes_hochberg']
+    df = df[df['method'] != 'fwe_sidak']
+    df = df[df['method'] != 'fwe_holm_sidak']
+    df = df[df['method'] != 'fwe_holm_bonferroni']
+    df = df[df['method'] != 'fdr_BY']
+
+    indexes = ['dataset', 'subject', 'confidence',
+               'fwh', 'sample_size', 'target']
+    drop = ['kth_round', 'nb_round', 'method']
+
+    df['success'] = df['reject'] / df['tests'] <= (1 - df['confidence'])
+    df = df.groupby(indexes).apply(lambda t: t).drop(drop, axis=1)
+    return df[df['target'].endswith('.1')]
 
 
 def get_pce_deviation(args, df):
@@ -132,7 +223,7 @@ def get_pce_deviation(args, df):
     sys.exit(1)
 
 
-def get_mct(args, df, alpha, alternative='two-sided', ratio=False):
+def get_mct_exclude(args, df, alpha, alternative='two-sided', ratio=False):
     '''
     Return tests that passes
     '''
@@ -159,6 +250,8 @@ def get_mct(args, df, alpha, alternative='two-sided', ratio=False):
 
     print('MCT')
 
+    df['fail'] = df['reject'] > 0
+    print(df)
     try:
         drop = ['k_fold', 'k_round']
         group = df.groupby(indexes).agg([np.sum, 'count']).drop(drop, axis=1)
@@ -166,21 +259,22 @@ def get_mct(args, df, alpha, alternative='two-sided', ratio=False):
         drop = ['kth_round', 'nb_round']
         group = df.groupby(indexes).agg([np.sum, 'count']).drop(drop, axis=1)
 
+    print(group)
     if ratio:
         # print(group.apply(lambda t: t))
         ratio = group.apply(
-            lambda t: t.fvr['sum'] / t.fvr['count'], axis=1, result_type='expand')
+            lambda t: t.fail['sum'] / t.fail['count'], axis=1, result_type='expand')
         # print(ratio)
         return ratio
     else:
-        pvalues = group.apply(lambda t: binom(int(t.fvr['sum']),
-                                              t.fvr['count'], alpha),
+        pvalues = group.apply(lambda t: binom(int(t.fail['sum']),
+                                              t.fail['count'], alpha),
                               axis=1, result_type='expand')
         # print(pvalues)
         return pvalues > alpha
 
 
-def plot_pce(pces, ratio=False):
+def plot_pce_exclude(pces, ratio=False):
 
     if ratio:
         colors = 'RdYlGn_r'
@@ -225,7 +319,7 @@ def plot_pce(pces, ratio=False):
             pce_y_labels = [t for t in pce_2d_sorted.index.values]
 
             p = pce_2d_sorted.replace({False: 0, True: 1, np.nan: 2})
-            im = px.imshow(p, zmin=0, zmax=1,
+            im = px.imshow(p, zmin=zmin, zmax=zmax,
                            color_continuous_scale=colors,
                            x=pce_x_labels, y=pce_y_labels,
                            origin='lower')
@@ -247,7 +341,68 @@ def plot_pce(pces, ratio=False):
     return pce_fig
 
 
-def plot_mct(mcts, ratio=False):
+def plot_pce_one(pces, ratio=False):
+    colors = ['rgb(165,0,38)', 'forestgreen'] + \
+        (['orange'] if args.show_nan else [])
+
+    pd.Config().set_fmt_str_lengths(150)
+
+    for pce in pces:
+        if pandas_library == 'polars':
+            pce = pce.with_columns([pce['success'].cast(pd.Int32)])
+            pce = pce.sort("confidence", "fwh", "subject",
+                           descending=[True, False, False])
+        if pandas_library == 'pandas':
+            pce = pce.reset_index()
+
+        fwhs = map(float, pce['fwh'].unique())
+        confidences = map(float, pce['confidence'].unique())
+
+        for fwh, confidence in itertools.product(fwhs, confidences):
+
+            print(pce)
+
+            pce_filtered = pce.filter(
+                (pd.col('fwh') == fwh) & (pd.col('confidence') == confidence)
+            )
+
+            print('filtered', pce_filtered)
+
+            pce2d = pce_filtered.pivot(index=['confidence'], columns=[
+                'fwh'], values='success')
+
+            print('pce2d', pce2d)
+
+            if pandas_library == 'pandas':
+                pce2d_sorted = pce2d.sort_index(
+                    axis=1).sort_index(axis=0, ascending=True)
+            else:
+                pce2d_sorted = pce2d
+            print(pce2d_sorted)
+            if pandas_library == 'pandas':
+                p = pce2d_sorted.replace({False: 0, True: 1})
+            else:
+                p = pce2d_sorted
+            fig = px.imshow(p, zmin=0, zmax=1,
+                            color_continuous_scale=colors, origin='lower')
+            fig.show()
+
+
+def plot_mct_one(mcts, ratio=False):
+    colors = ['rgb(165,0,38)', 'forestgreen'] + \
+        (['orange'] if args.show_nan else [])
+    for mct in mcts:
+        mct2d = mct.reset_index().pivot(
+            index=['confidence'], columns=['fwh'], values=0)
+        mct2d_sorted = mct2d.sort_index(
+            axis=1).sort_index(axis=0, ascending=True)
+        p = mct2d_sorted.replace({False: 0, True: 1})
+        fig = px.imshow(p, zmin=0, zmax=1,
+                        color_continuous_scale=colors, origin='lower')
+        fig.show()
+
+
+def plot_mct_exclude(mcts, ratio=False):
 
     title = f'{args.title} ({args.meta_alpha})'
     subjects = mcts[0].reset_index()['subject'].unique()
@@ -321,9 +476,11 @@ def plot_mct(mcts, ratio=False):
     return mct_fig
 
 
-def plotly_backend(args, pces, mcts, show, no_pce, no_mct, ratio=False):
-    pce_fig = plot_pce(pces, ratio)
-    mct_fig = plot_mct(mcts, ratio)
+def plotly_backend_exclude(args, pces, mcts, show, no_pce, no_mct, ratio=False):
+    if not no_pce:
+        pce_fig = plot_pce_exclude(pces, ratio)
+    if not no_mct:
+        mct_fig = plot_mct_exclude(mcts, ratio)
 
     if show:
         if not no_pce:
@@ -333,48 +490,71 @@ def plotly_backend(args, pces, mcts, show, no_pce, no_mct, ratio=False):
 
     ext = '_ratio' if args.ratio else ''
 
-    pce_fig.write_image(f'{args.test}_pce{ext}.pdf', scale=5)
-    mct_fig.write_image(f'{args.test}_mct{ext}.pdf', scale=5)
+    if not no_pce:
+        pce_fig.write_image(f'{args.test}_pce{ext}.pdf', scale=5)
+    if not no_mct:
+        mct_fig.write_image(f'{args.test}_mct{ext}.pdf', scale=5)
 
 
-def seaborn_backend(pce, mct, show):
-
-    sns.set_theme(style='dark', palette='pastel')
-
-    mct_2d = mct.reset_index().pivot(
-        index=['confidence', 'method'], columns=['fwh', 'subject'], values=0)
-    mct_2d_sorted = mct_2d.sort_index(
-        axis=1).sort_index(axis=0, ascending=False)
-
-    mct_x_labels = [' '.join(map(str, t))
-                    for t in mct_2d_sorted.sort_index(axis=1).columns.values]
-    mct_y_labels = [' '.join(map(str, t))
-                    for t in mct_2d_sorted.sort_index(axis=1).index.values]
-
-    f, ax = plt.subplots()
-    sns.heatmap(mct_2d_sorted.replace({False: 0, True: 1, np.nan: 2}), cmap=[
-        'red', 'green', 'orange'], ax=ax, cbar_kws={'ticks': [0, 1, 2]},
-        square=True, xticklabels=mct_x_labels, yticklabels=mct_y_labels)
-
-    ax2 = ax.twiny()
-    ax2.set_xticks(range(len(mct_x_labels)))
-    ax2.set_xticklabels([int(float(t.split()[0]))
-                        for t in mct_x_labels])
-    ax2.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
-    ax.collections[0].colorbar.set_ticklabels(['Reject', 'Pass', 'NA'])
+def plotly_backend_one(args, pces, mcts, show, no_pce, no_mct, ratio=False):
+    if not no_pce:
+        pce_fig = plot_pce_one(pces, ratio)
+    if not no_mct:
+        mct_fig = plot_mct_one(mcts, ratio)
 
     if show:
-        plt.show()
+        if not no_pce:
+            pce_fig.show()
+        if not no_mct:
+            mct_fig.show()
+
+    ext = '_ratio' if args.ratio else ''
+
+    if not no_pce:
+        pce_fig.write_image(f'{args.test}_pce{ext}.pdf', scale=5)
+    if not no_mct:
+        mct_fig.write_image(f'{args.test}_mct{ext}.pdf', scale=5)
 
 
 def get_optimum(df):
-    df = df.reset_index()
+    print(df)
+    if pandas_library == 'pandas':
+        df = df.reset_index()
     g = df.groupby(['confidence', 'fwh'])
-    s = g.sum().drop('sample_size', axis=1)
+    s = drop_column(g.sum(), 'sample_size')
+
     optimum = s.loc[s[0].max() == s[0]]
     indexes = optimum.index.values
     (alpha_star, fwh_star) = max(indexes, key=lambda t: (t[0], -t[1]))
     return (alpha_star, fwh_star)
+
+
+def parse_dataframe(dfs, get_test, **kwds):
+    return list(map(lambda df: get_test(args, df, **kwds), dfs))
+
+
+def get_optimum_test(references, pce_tests, ext):
+    for reference, pce_test in zip(references, pce_tests):
+        print('=' * 30)
+        print(reference)
+        (alpha_star, fwh_star) = get_optimum(pce_test)
+        print(f'pce alpha*={alpha_star}, fwh*={fwh_star}')
+        name = reference.replace(os.path.sep, '_')
+        pce_test.to_csv(f'{args.test}_{name}_pce{ext}.csv')
+
+
+def get_references(references):
+    dfs = []
+    for reference in references:
+        paths = glob.glob(f'{reference}/*.pkl')
+        ldf = []
+        for path in paths:
+            with open(path, 'rb') as fib:
+                pkl = pickle.load(fib)
+                df = pd.DataFrame(pkl)
+                ldf.append(add_prefix(df, reference))
+        dfs.append(pd.concat(ldf))
+    return dfs
 
 
 def plot_exclude(args):
@@ -386,49 +566,63 @@ def plot_exclude(args):
 
     ext = '_ratio' if args.ratio else ''
 
-    dfs = []
+    dfs = get_references(references)
 
-    for reference in references:
-        paths = glob.glob(f'{reference}/*.pkl')
-        ldf = []
-        for path in paths:
-            with open(path, 'rb') as fib:
-                pkl = pickle.load(fib)
-                df = pd.DataFrame(pkl)
-                df.insert(0, "prefix", reference)
-                ldf.append(df)
-        dfs.append(pd.concat(ldf))
+    if not args.no_pce:
+        pce_tests = parse_dataframe(
+            dfs,  get_pce_exclude, alpha=alpha, alternative='greater', ratio=args.ratio)
+        get_optimum_test(references, pce_tests, ext)
+    else:
+        pce_tests = []
 
-    pce_tests, mct_tests = [], []
-    for df in dfs:
-        pce_tests.append(
-            get_pce(args, df, alpha, alternative='two-sided', ratio=args.ratio))
-        mct_tests.append(
-            get_mct(args, df, alpha, alternative='greater', ratio=args.ratio))
+    if not args.no_mct:
+        mct_tests = parse_dataframe(
+            dfs,  get_mct_exclude, alpha=alpha, alternative='greater', ratio=args.ratio)
+        get_optimum_test(references, mct_tests, ext)
+    else:
+        mct_tests = []
 
-    for reference, pce_test, mct_test in zip(references, pce_tests, mct_tests):
-        print('=' * 30)
-        print(reference)
-        (alpha_star, fwh_star) = get_optimum(pce_test)
-        print(f'pce alpha*={alpha_star}, fwh*={fwh_star}')
-        (alpha_star, fwh_star) = get_optimum(mct_test)
-        print(f'mct alpha*={alpha_star}, fwh*={fwh_star}')
-        name = reference.replace(os.path.sep, '_')
-        pce_test.to_csv(f'{args.test}_{name}_pce{ext}.csv')
-        mct_test.to_csv(f'{args.test}_{name}_mct{ext}.csv')
+    plotly_backend_exclude(args,
+                           pce_tests, mct_tests, show,
+                           no_pce=args.no_pce,
+                           no_mct=args.no_mct,
+                           ratio=args.ratio)
 
-    plotly_backend(args,
-                   pce_tests, mct_tests, show,
-                   no_pce=args.no_pce,
-                   no_mct=args.no_mct,
-                   ratio=args.ratio)
+
+def plot_one(args):
+    references = args.reference
+    show = args.show
+    alpha = args.meta_alpha
+
+    ext = '_ratio' if args.ratio else ''
+
+    dfs = get_references(references)
+    if not args.no_pce:
+        pce_tests = parse_dataframe(
+            dfs,  get_pce_one, alpha=alpha, ratio=args.ratio)
+        # get_optimum_test(references, pce_tests, ext)
+    else:
+        pce_tests = []
+
+    if not args.no_mct:
+        mct_tests = parse_dataframe(
+            dfs,  get_mct_one, alpha=alpha,  ratio=args.ratio)
+        # get_optimum_test(references, mct_tests, ext)
+    else:
+        mct_tests = []
+
+    plotly_backend_one(args,
+                       pce_tests, mct_tests, show,
+                       no_pce=args.no_pce,
+                       no_mct=args.no_mct,
+                       ratio=args.ratio)
 
 
 def plot_deviation_exclude(args):
     pd.set_option('display.max_rows', None)
-    #pd.set_option('display.max_columns', None)
-    #pd.set_option('display.width', None)
-    #pd.set_option('max_colwidth', -1)
+    # pd.set_option('display.max_columns', None)
+    # pd.set_option('display.width', None)
+    # pd.set_option('max_colwidth', -1)
 
     references = args.reference
     show = args.show
@@ -467,10 +661,6 @@ def plot_deviation_exclude(args):
                    no_pce=args.no_pce,
                    no_mct=args.no_mct,
                    ratio=args.ratio)
-
-
-def plot_one(args):
-    plot_exclude(args)
 
 
 def parse_args():
