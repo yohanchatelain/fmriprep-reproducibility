@@ -1,13 +1,12 @@
+import hashlib
 import itertools
 import sys
 import argparse
 import glob
 import os
 import pickle
-from statistics import NormalDist
-from unicodedata import category
+import tqdm
 
-import matplotlib.pyplot as plt
 import numpy as np
 import polars as pd
 import plotly.express as px
@@ -46,70 +45,6 @@ ref_subjects = [
     'sub-CTS210'
 ]
 
-pandas_library = pd.__name__
-
-
-def filter(table, column_name, column_value):
-    if pandas_library == 'pandas':
-        return table[table[column_name] == column_value]
-    elif pandas_library == 'polars':
-        return table.filter((pd.col(column_name) == column_value))
-    else:
-        raise Exception(f'Unkown table library {pd.__name_}')
-
-
-def insert(table, column_name, column_value):
-    if pandas_library == 'pandas':
-        table.insert(0, column_name, column_value)
-        return table
-    elif pandas_library == 'polars':
-        return table.with_columns(
-            pd.Series(name=column_name, values=column_value))
-    else:
-        raise Exception(f'Unkown table library {pd.__name_}')
-
-
-def add_prefix(table, prefix):
-    if pandas_library == 'pandas':
-        return insert(table, 'prefix', prefix)
-    elif pandas_library == 'polars':
-        return insert(table, 'prefix', [prefix])
-    else:
-        raise Exception(f'Unkown table library {pd.__name_}')
-
-
-def drop_column(table, columns_name):
-    if pandas_library == 'pandas':
-        return table.drop(columns_name, axis=1)
-    elif pandas_library == 'polars':
-        return table.drop(columns_name)
-    else:
-        raise Exception(f'Unkown table library {pd.__name_}')
-
-
-string_methods = {'pandas': {'endswith': 'endswith', 'contains': '__contains__'},
-                  'polars': {'endswith': 'ends_with', 'contains': 'contains'}}
-
-
-def filter_string(table, column_name, regexp, method):
-    if pandas_library == 'pandas':
-        if method == 'contains':
-            return filter_string_contains(table, column_name, regexp)
-    elif pandas_library == 'polars':
-        if method == 'contains':
-            return filter_string_contains(table, column_name, regexp)
-    else:
-        raise Exception(f'Unkown table library {pd.__name_}')
-
-
-def filter_string_contains(table, column_name, regexp):
-    if pandas_library == 'pandas':
-        return table[regexp in table[column_name]]
-    elif pandas_library == 'polars':
-        return table.filter(pd.col(column_name).str.contains(regexp))
-    else:
-        raise Exception(f'Unkown table library {pd.__name_}')
-
 
 def open_file(filename):
     with open(filename, 'rb') as fi:
@@ -132,68 +67,132 @@ def get_test(test, confidence,
     return include
 
 
-def get_pce_exclude(args, df, alpha, alternative='two-sided', ratio=False):
+def get_pce_exclude(args, df, alpha,
+                    alternative='two-sided',
+                    ratio=False,
+                    high_confidence=False):
     '''
     Return tests that passes
     '''
-    def ttest(sample, mean):
-        return scipy.stats.ttest_1samp(sample, popmean=mean, alternative=alternative).pvalue
+    def ttest(series_of_struct):
+        _values = [
+            scipy.stats.ttest_1samp(next_struct['fvr'],
+                                    popmean=next_struct['alpha'],
+                                    alternative=alternative).pvalue
+            for next_struct in series_of_struct
+        ]
+        return pd.Series(values=_values)
 
-    df = df[df['method'] == 'pce']
+    def ttest_ci(series_of_struct):
+        _values = [
+            tuple(scipy.stats.ttest_1samp(next_struct['fvr'],
+                                          popmean=next_struct['alpha'],
+                                          alternative=alternative).confidence_interval(confidence_level=1-alpha))
+            for next_struct in series_of_struct
+        ]
+        return pd.Series(values=_values)
 
-    indexes = ['dataset', 'subject', 'confidence', 'fwh', 'sample_size']
+    df = df.filter((pd.col('method') == 'pce'))
 
-    drop = ['kth_round', 'nb_round', 'target', 'method']
-
-    df.insert(0, 'alpha', value=1 - df['confidence'])
-    df.insert(0, 'fvr', value=df['reject'] / df['tests'])
-
-    if args.ratio:
-        ratio = df.groupby(indexes).agg(list).drop(drop, axis=1).apply(
-            lambda t: np.mean(t.fvr), axis=1, result_type='expand')
-        return ratio
+    if high_confidence:
+        df = df.filter(pd.col('confidence') > 0.99)
     else:
-        pvalues = df.groupby(indexes).agg(list).drop(drop, axis=1).apply(
-            lambda t: ttest(t.fvr, t.alpha[0]), axis=1, result_type='expand')
-        return pvalues > alpha
+        df = df.filter(pd.col('confidence') <= 0.99)
+
+    indexes = ['reference_dataset', 'reference_subject', 'reference_template',
+               'target_dataset', 'target_subject', 'target_template',
+               'confidence', 'fwhm', 'alpha',
+               'mask']
+
+    df = df.with_columns(
+        (
+            (1 - pd.col('confidence')).alias('alpha'),
+            (pd.col('reject') / pd.col('tests')).alias('fvr')
+        )
+    )
+
+    df = df.groupby(indexes).agg(
+        [
+            pd.col('fvr'),
+            pd.col('fvr').mean().alias('ratio')
+        ]
+    )
+
+    df = df.with_columns(
+        (
+            (pd.struct(["fvr", "alpha"]).map(ttest)).alias('pvalue')
+        )
+    )
+
+    df = df.with_columns(
+        (pd.col('pvalue') >= alpha).alias('success')
+    )
+
+    return df
 
 
-def get_pce_one(args, df, alpha, ratio=False):
+def get_pce_one(args, df, alpha,
+                alternative='two-sided',
+                ratio=False,
+                high_confidence=False):
+    '''
+    Return tests that passes
+    '''
+    # def ttest(series_of_struct):
+    #     _values = [
+    #         scipy.stats.ttest_1samp(next_struct['fvr'],
+    #                                 popmean=next_struct['alpha'],
+    #                                 alternative=alternative).pvalue
+    #         for next_struct in series_of_struct
+    #     ]
+    #     return pd.Series(values=_values)
 
-    df = filter(df, 'method', 'pce')
+    # def ttest_ci(series_of_struct):
+    #     _values = [
+    #         tuple(scipy.stats.ttest_1samp(next_struct['fvr'],
+    #                                       popmean=next_struct['alpha'],
+    #                                       alternative=alternative).confidence_interval(confidence_level=1-alpha))
+    #         for next_struct in series_of_struct
+    #     ]
+    #     return pd.Series(values=_values)
 
-    indexes = ['dataset', 'subject', 'confidence',
-               'fwh',  'target']
-    drop = ['kth_round', 'nb_round', 'method',
-            'sample_size', 'reject', 'tests']
+    df = df.filter((pd.col('method') == 'pce'))
 
-    df = insert(df, 'success', df['reject'] /
-                df['tests'] <= (1 - df['confidence']))
+    if high_confidence:
+        df = df.filter(pd.col('confidence') > 0.99)
+    else:
+        df = df.filter(pd.col('confidence') <= 0.99)
 
-    df = drop_column(df.groupby(indexes).apply(lambda t: t), drop)
+    # indexes = ['reference_dataset', 'reference_subject', 'reference_template',
+    #            'target_dataset', 'target_subject', 'target_template',
+    #            'confidence', 'fwhm', 'alpha',
+    #            'mask']
 
-    return filter_string_contains(df, 'target', '.1/fmriprep')
+    df = df.with_columns(
+        (
+            (1 - pd.col('confidence')).alias('alpha'),
+            (pd.col('reject') / pd.col('tests')).alias('fvr')
+        )
+    )
 
+    # df = df.groupby(indexes).agg(
+    #     [
+    #         pd.col('fvr'),
+    #         pd.col('fvr').mean().alias('ratio')
+    #     ]
+    # )
 
-def get_mct_one(args, df, alpha, ratio=False):
+    # df = df.with_columns(
+    #     (
+    #         (pd.struct(["fvr", "alpha"]).map(ttest)).alias('pvalue')
+    #     )
+    # )
 
-    df = df[df['method'] != 'pce']
-    df = df[df['method'] != 'fdr_TSBY']
-    df = df[df['method'] != 'fdr_TSBH']
-    df = df[df['method'] != 'fdr_BH']
-    df = df[df['method'] != 'fwe_simes_hochberg']
-    df = df[df['method'] != 'fwe_sidak']
-    df = df[df['method'] != 'fwe_holm_sidak']
-    df = df[df['method'] != 'fwe_holm_bonferroni']
-    df = df[df['method'] != 'fdr_BY']
+    df = df.with_columns(
+        (pd.col('fvr') <= pd.col('alpha')).alias('success')
+    )
 
-    indexes = ['dataset', 'subject', 'confidence',
-               'fwh', 'sample_size', 'target']
-    drop = ['kth_round', 'nb_round', 'method']
-
-    df['success'] = df['reject'] / df['tests'] <= (1 - df['confidence'])
-    df = df.groupby(indexes).apply(lambda t: t).drop(drop, axis=1)
-    return df[df['target'].endswith('.1')]
+    return df
 
 
 def get_pce_deviation(args, df):
@@ -223,58 +222,119 @@ def get_pce_deviation(args, df):
     sys.exit(1)
 
 
-def get_mct_exclude(args, df, alpha, alternative='two-sided', ratio=False):
+def get_mct_exclude(args, df, alpha,
+                    alternative='two-sided',
+                    ratio=False,
+                    method='fwe_bonferroni',
+                    high_confidence=False):
     '''
     Return tests that passes
     '''
+    def binom(series_of_struct):
+        _values = [
+            scipy.stats.binomtest(k=next_struct['fails'],
+                                  n=next_struct['trials'],
+                                  p=next_struct['alpha'],
+                                  alternative=alternative).pvalue
+            for next_struct in series_of_struct
+        ]
+        return pd.Series(values=_values)
 
-    names = ['dataset', 'subject', 'confidence',
-             'fwh', 'sample_size', 'method']
+    indexes = ['reference_dataset', 'reference_subject', 'reference_template',
+               'target_dataset', 'target_subject', 'target_template',
+               'confidence', 'fwhm', 'alpha',
+               'mask']
 
-    df = df[df['method'] != 'pce']
-    df = df[df['method'] != 'fdr_TSBY']
-    df = df[df['method'] != 'fdr_TSBH']
-    df = df[df['method'] != 'fdr_BH']
-    df = df[df['method'] != 'fwe_simes_hochberg']
-    df = df[df['method'] != 'fwe_sidak']
-    df = df[df['method'] != 'fwe_holm_sidak']
-    df = df[df['method'] != 'fwe_holm_bonferroni']
-    df = df[df['method'] != 'fdr_BY']
-    # df = df[df['method'] != 'fwe_bonferroni']
+    df = df.filter((pd.col('method') == method))
 
-    indexes = ['dataset', 'subject', 'confidence',
-               'fwh', 'sample_size', 'method']
-
-    def binom(fail, trials, alpha):
-        return scipy.stats.binomtest(k=fail, n=trials, p=alpha, alternative=alternative).pvalue
-
-    print('MCT')
-
-    df['fail'] = df['reject'] > 0
-    print(df)
-    try:
-        drop = ['k_fold', 'k_round']
-        group = df.groupby(indexes).agg([np.sum, 'count']).drop(drop, axis=1)
-    except KeyError:
-        drop = ['kth_round', 'nb_round']
-        group = df.groupby(indexes).agg([np.sum, 'count']).drop(drop, axis=1)
-
-    print(group)
-    if ratio:
-        # print(group.apply(lambda t: t))
-        ratio = group.apply(
-            lambda t: t.fail['sum'] / t.fail['count'], axis=1, result_type='expand')
-        # print(ratio)
-        return ratio
+    if high_confidence:
+        df = df.filter(pd.col('confidence') > 0.99)
     else:
-        pvalues = group.apply(lambda t: binom(int(t.fail['sum']),
-                                              t.fail['count'], alpha),
-                              axis=1, result_type='expand')
-        # print(pvalues)
-        return pvalues > alpha
+        df = df.filter(pd.col('confidence') <= 0.99)
+
+    df = df.with_columns(
+        (
+            (pd.col('reject') > 0).alias('fail'),
+            (1 - pd.col('confidence')).alias('alpha')
+        )
+    )
+
+    df = df.groupby(indexes).agg(
+        [
+            (pd.col('fail').sum()).alias('fails'),
+            (pd.col('fail').count()).alias('trials'),
+            (pd.col('fail').mean()).alias('ratio')
+        ]
+    )
+
+    df = df.with_columns(
+        (pd.struct(["fails", "trials", "alpha"]).map(binom).alias('pvalue'))
+    )
+
+    df = df.with_columns(
+        (pd.col('pvalue') >= alpha).alias('success')
+    )
+
+    return df
 
 
-def plot_pce_exclude(pces, ratio=False):
+def get_mct_one(args, df, alpha,
+                alternative='two-sided',
+                ratio=False,
+                method='fwe_bonferroni',
+                high_confidence=False):
+    '''
+    Return tests that passes
+    '''
+    # def binom(series_of_struct):
+    #     _values = [
+    #         scipy.stats.binomtest(k=next_struct['fails'],
+    #                               n=next_struct['trials'],
+    #                               p=next_struct['alpha'],
+    #                               alternative=alternative).pvalue
+    #         for next_struct in series_of_struct
+    #     ]
+    #     return pd.Series(values=_values)
+
+    # indexes = ['reference_dataset', 'reference_subject', 'reference_template',
+    #            'target_dataset', 'target_subject', 'target_template',
+    #            'confidence', 'fwhm', 'alpha',
+    #            'mask']
+
+    df = df.filter((pd.col('method') == method))
+
+    if high_confidence:
+        df = df.filter(pd.col('confidence') > 0.99)
+    else:
+        df = df.filter(pd.col('confidence') <= 0.99)
+
+    df = df.with_columns(
+        (
+            (pd.col('reject') > 0).alias('fail'),
+            (1 - pd.col('confidence')).alias('alpha')
+        )
+    )
+
+    # df = df.groupby(indexes).agg(
+    #     [
+    #         (pd.col('fail').sum()).alias('fails'),
+    #         (pd.col('fail').count()).alias('trials'),
+    #         (pd.col('fail').mean()).alias('ratio')
+    #     ]
+    # )
+
+    # df = df.with_columns(
+    #     (pd.struct(["fails", "trials", "alpha"]).map(binom).alias('pvalue'))
+    # )
+
+    df = df.with_columns(
+        (pd.col('reject') <= 0).alias('success')
+    )
+
+    return df
+
+
+def plot_pce_exclude(pces, ratio=False, verbose=False):
 
     if ratio:
         colors = 'RdYlGn_r'
@@ -286,13 +346,14 @@ def plot_pce_exclude(pces, ratio=False):
         zmin = 0
         zmax = 2 if args.show_nan else 1
 
-    subjects = pces[0].reset_index()['subject'].unique()
+    subjects = pces[0].collect().select(
+        pd.col('reference_subject')).unique().sort(by=['reference_subject']).to_dict(as_series=False)['reference_subject']
     cols = len(pces)
     rows = len(subjects)
 
     pce_fig = make_subplots(rows=rows, cols=cols,
                             column_titles=['RR', 'RS', 'RR+RS'],
-                            row_titles=subjects.tolist(),
+                            row_titles=subjects,
                             shared_xaxes=True,
                             shared_yaxes=True,
                             x_title='FWHM (mm)',
@@ -302,26 +363,39 @@ def plot_pce_exclude(pces, ratio=False):
 
     for col, pce in enumerate(pces, start=1):
 
-        pce = pce.reset_index()
         for row, subject in enumerate(subjects, start=1):
 
             for a in pce_fig['layout']['annotations']:
                 a['textangle'] = 0
 
-            pce_ = pce[pce['subject'] == subject]
-            pce_2d = pce_.reset_index().pivot(
-                index=['confidence'], columns=['fwh'], values=0)
-            pce_2d_sorted = pce_2d.sort_index(
-                axis=1).sort_index(axis=0, ascending=True)
+            pce_subject = pce.filter(pd.col('reference_subject') == subject).sort(
+                by=['confidence', 'fwhm'], descending=[False, False]).collect()
 
-            pce_x_labels = [t for t in pce_2d_sorted.sort_index(
-                axis=1).columns.values]
-            pce_y_labels = [t for t in pce_2d_sorted.index.values]
+            if ratio:
+                pivot = pce_subject.pivot(index=['confidence'], columns=[
+                    'fwhm'], values='ratio')
+            else:
+                pivot = pce_subject.pivot(index=['confidence'], columns=[
+                    'fwhm'], values='success')
 
-            p = pce_2d_sorted.replace({False: 0, True: 1, np.nan: 2})
-            im = px.imshow(p, zmin=zmin, zmax=zmax,
+            confidences = pivot['confidence'].to_numpy()
+            fwhms = pivot.columns[1:]
+            z = pivot.to_numpy()[..., 1:]
+
+            if verbose:
+                print(subject)
+                print('x', confidences.shape)
+                print(confidences)
+                print('y', len(fwhms))
+                print(fwhms)
+                print('z', z.shape)
+                print(pivot)
+
+            im = px.imshow(z,
+                           x=[str(f) for f in fwhms],
+                           y=[str(f) for f in confidences],
+                           zmin=zmin, zmax=zmax,
                            color_continuous_scale=colors,
-                           x=pce_x_labels, y=pce_y_labels,
                            origin='lower')
 
             pce_fig.add_trace(im.data[0], row=row, col=col)
@@ -341,71 +415,108 @@ def plot_pce_exclude(pces, ratio=False):
     return pce_fig
 
 
-def plot_pce_one(pces, ratio=False):
-    colors = ['rgb(165,0,38)', 'forestgreen'] + \
-        (['orange'] if args.show_nan else [])
+def plot_pce_one(pces, ratio=False, verbose=False):
 
-    pd.Config().set_fmt_str_lengths(150)
+    if ratio:
+        colors = 'RdYlGn_r'
+        zmin = 0
+        zmax = 1
+    else:
+        colors = ['rgb(165,0,38)', 'forestgreen'] + \
+            (['orange'] if args.show_nan else [])
+        zmin = 0
+        zmax = 2 if args.show_nan else 1
+
+    subjects = pces[0].collect().select(
+        pd.col('reference_subject')).unique().sort(by=['reference_subject']).to_dict(as_series=False)['reference_subject']
+
+    pce_figs = []
 
     for pce in pces:
-        if pandas_library == 'polars':
-            pce = pce.with_columns([pce['success'].cast(pd.Int32)])
-            pce = pce.sort("confidence", "fwh", "subject",
-                           descending=[True, False, False])
-        if pandas_library == 'pandas':
-            pce = pce.reset_index()
 
-        fwhs = map(float, pce['fwh'].unique())
-        confidences = map(float, pce['confidence'].unique())
+        pce = pce.collect()
 
-        for fwh, confidence in itertools.product(fwhs, confidences):
+        confidences = pce['confidence'].unique().sort(
+            descending=True).to_numpy()
+        fwhms = pce['fwhm'].unique().sort().to_numpy()
 
-            print(pce)
+        print(confidences)
+        print(fwhms)
 
-            pce_filtered = pce.filter(
-                (pd.col('fwh') == fwh) & (pd.col('confidence') == confidence)
-            )
+        rows = confidences.size
+        cols = fwhms.size
 
-            print('filtered', pce_filtered)
+        pce_fig = make_subplots(rows=rows, cols=cols,
+                                column_titles=[str(f) for f in fwhms],
+                                row_titles=[str(c) for c in confidences],
+                                shared_xaxes=True,
+                                shared_yaxes=True,
+                                x_title='FWHM (mm)',
+                                y_title='Confidence level',
+                                vertical_spacing=0,
+                                horizontal_spacing=0)
 
-            pce2d = pce_filtered.pivot(index=['confidence'], columns=[
-                'fwh'], values='success')
+        for row, confidence in enumerate(confidences, start=1):
 
-            print('pce2d', pce2d)
+            for a in pce_fig['layout']['annotations']:
+                a['textangle'] = 0
 
-            if pandas_library == 'pandas':
-                pce2d_sorted = pce2d.sort_index(
-                    axis=1).sort_index(axis=0, ascending=True)
+            for col, fwhm in enumerate(fwhms, start=1):
+
+                cell = pce.filter((pd.col('confidence') == confidence) & (
+                    pd.col('fwhm') == fwhm)).sort(by=['confidence',
+                                                      'fwhm',
+                                                      'reference_subject',
+                                                      'target_subject'])
+                pivot = cell.pivot(index=['reference_subject'], columns=[
+                    'target_subject'], values='success')
+
+                x = pivot['reference_subject'].to_numpy()
+                y = pivot.columns[1:]
+                z = pivot.to_numpy()[..., 1:]
+
+                if verbose:
+                    print('='*30)
+                    print(f'Confidence: {confidence}, FWHM: {fwhm}')
+                    print('x', x.shape)
+                    print(x)
+                    print('y', len(y))
+                    print(y)
+                    print('z', z.shape)
+                    print(pivot)
+                    print(z)
+
+                im = px.imshow(z,
+                               x=[str(i) for i in x],
+                               y=[str(i) for i in y],
+                               zmin=zmin, zmax=zmax,
+                               color_continuous_scale=colors,
+                               origin='lower')
+
+                pce_fig.add_trace(im.data[0], row=row, col=col)
+
+            pce_fig.update_layout(coloraxis=dict(colorscale=colors))
+            pce_fig.update_coloraxes(cmin=0, cmax=1)
+            pce_fig.update_layout(margin=dict(t=25, b=60))
+
+            if not args.ratio:
+                pce_fig.update_traces(showlegend=False)
+                pce_fig.update_coloraxes(showscale=False)
             else:
-                pce2d_sorted = pce2d
-            print(pce2d_sorted)
-            if pandas_library == 'pandas':
-                p = pce2d_sorted.replace({False: 0, True: 1})
-            else:
-                p = pce2d_sorted
-            fig = px.imshow(p, zmin=0, zmax=1,
-                            color_continuous_scale=colors, origin='lower')
-            fig.show()
+                pce_fig.update_layout(coloraxis_colorbar_x=1.05)
+
+            pce_fig['layout']['annotations'][-1]['textangle'] = -90
+
+        pce_figs.append(pce_fig)
+
+    return pce_fig
 
 
-def plot_mct_one(mcts, ratio=False):
-    colors = ['rgb(165,0,38)', 'forestgreen'] + \
-        (['orange'] if args.show_nan else [])
-    for mct in mcts:
-        mct2d = mct.reset_index().pivot(
-            index=['confidence'], columns=['fwh'], values=0)
-        mct2d_sorted = mct2d.sort_index(
-            axis=1).sort_index(axis=0, ascending=True)
-        p = mct2d_sorted.replace({False: 0, True: 1})
-        fig = px.imshow(p, zmin=0, zmax=1,
-                        color_continuous_scale=colors, origin='lower')
-        fig.show()
-
-
-def plot_mct_exclude(mcts, ratio=False):
+def plot_mct_one(mcts, ratio=False, verbose=False):
 
     title = f'{args.title} ({args.meta_alpha})'
-    subjects = mcts[0].reset_index()['subject'].unique()
+    subjects = mcts[0].collect().select(
+        pd.col('reference_subject')).unique().sort(by=['reference_subject']).to_dict(as_series=False)['reference_subject']
     cols = len(mcts)
     rows = len(subjects)
 
@@ -421,7 +532,7 @@ def plot_mct_exclude(mcts, ratio=False):
 
     mct_fig = make_subplots(rows=rows, cols=cols,
                             column_titles=['RR', 'RS', 'RR+RS'],
-                            row_titles=subjects.tolist(),
+                            row_titles=subjects,
                             shared_xaxes=True,
                             shared_yaxes=True,
                             x_title='FWHM (mm)',
@@ -431,35 +542,120 @@ def plot_mct_exclude(mcts, ratio=False):
 
     for col, mct in enumerate(mcts, start=1):
 
-        mct = mct.reset_index()
+        for a in mct_fig['layout']['annotations']:
+            a['textangle'] = 0
+
+        for row, subject in enumerate(subjects, start=1):
+
+            mct_subject = mct.filter(pd.col('reference_subject') == subject).sort(
+                by=['confidence', 'fwhm'], descending=[False, False]).collect()
+
+            if ratio:
+                pivot = mct_subject.pivot(index=['confidence'], columns=[
+                    'fwhm'], values='ratio')
+            else:
+                pivot = mct_subject.pivot(index=['confidence'], columns=[
+                    'fwhm'], values='success')
+
+            confidences = pivot['confidence'].to_numpy()
+            fwhms = pivot.columns[1:]
+            z = pivot.to_numpy()[..., 1:]
+
+            if verbose:
+                print(subject)
+                print('x', confidences.shape)
+                print(confidences)
+                print('y', len(fwhms))
+                print(fwhms)
+                print('z', z.shape)
+                print(pivot)
+
+            im = px.imshow(z,
+                           x=[str(f) for f in fwhms],
+                           y=[str(f) for f in confidences],
+                           zmin=zmin, zmax=zmax,
+                           color_continuous_scale=colors,
+                           origin='lower')
+            # print(im)
+            mct_fig.add_trace(im.data[0], row=row, col=col)
+
+    mct_fig.update_layout(coloraxis=dict(colorscale=colors))
+    mct_fig.update_layout(title='')
+    if not args.ratio:
+        mct_fig.update_traces(showlegend=False)
+        mct_fig.update_coloraxes(showscale=False)
+    else:
+        mct_fig.update_layout(coloraxis_colorbar_x=1.05)
+    mct_fig.update_layout(margin=dict(t=25))
+    mct_fig['layout']['annotations'][-1]['textangle'] = -90
+
+    return mct_fig
+
+
+def plot_mct_exclude(mcts, ratio=False, verbose=False):
+
+    title = f'{args.title} ({args.meta_alpha})'
+    subjects = mcts[0].collect().select(
+        pd.col('reference_subject')).unique().sort(by=['reference_subject']).to_dict(as_series=False)['reference_subject']
+    cols = len(mcts)
+    rows = len(subjects)
+
+    if ratio:
+        colors = 'RdYlGn_r'
+        zmin = 0
+        zmax = 1
+    else:
+        colors = ['rgb(165,0,38)', 'forestgreen'] + \
+            (['orange'] if args.show_nan else [])
+        zmin = 0
+        zmax = 2 if args.show_nan else 1
+
+    mct_fig = make_subplots(rows=rows, cols=cols,
+                            column_titles=['RR', 'RS', 'RR+RS'],
+                            row_titles=subjects,
+                            shared_xaxes=True,
+                            shared_yaxes=True,
+                            x_title='FWHM (mm)',
+                            y_title='Confidence level',
+                            vertical_spacing=0.02,
+                            horizontal_spacing=0.01)
+
+    for col, mct in enumerate(mcts, start=1):
 
         for a in mct_fig['layout']['annotations']:
             a['textangle'] = 0
 
         for row, subject in enumerate(subjects, start=1):
-            print(col, row, subject)
 
-            mct_ = mct[mct['subject'] == subject]
-            mct_2d = mct_.pivot(
-                index=['confidence', 'method'], columns=['fwh'], values=0)
-            mct_2d_sorted = mct_2d.sort_index(
-                axis=1).sort_index(axis=0, ascending=True)
-
-            mct_x_labels = [t for t in mct_2d_sorted.sort_index(
-                axis=1).columns.values]
-            mct_y_labels = [
-                str(t[0]) for t in mct_2d_sorted.sort_index(axis=1, ascending=True).index.values]
+            mct_subject = mct.filter(pd.col('reference_subject') == subject).sort(
+                by=['confidence', 'fwhm'], descending=[False, False]).collect()
 
             if ratio:
-                p = mct_2d_sorted
+                pivot = mct_subject.pivot(index=['confidence'], columns=[
+                    'fwhm'], values='ratio')
             else:
-                p = mct_2d_sorted.replace({False: 0, True: 1, np.nan: 2})
+                pivot = mct_subject.pivot(index=['confidence'], columns=[
+                    'fwhm'], values='success')
 
-            im = px.imshow(p,
-                           color_continuous_scale=colors,
-                           x=mct_x_labels, y=mct_y_labels,
+            confidences = pivot['confidence'].to_numpy()
+            fwhms = pivot.columns[1:]
+            z = pivot.to_numpy()[..., 1:]
+
+            if verbose:
+                print(subject)
+                print('x', confidences.shape)
+                print(confidences)
+                print('y', len(fwhms))
+                print(fwhms)
+                print('z', z.shape)
+                print(pivot)
+
+            im = px.imshow(z,
+                           x=[str(f) for f in fwhms],
+                           y=[str(f) for f in confidences],
                            zmin=zmin, zmax=zmax,
-                           origin='upper')
+                           color_continuous_scale=colors,
+                           origin='lower')
             # print(im)
             mct_fig.add_trace(im.data[0], row=row, col=col)
 
@@ -478,9 +674,9 @@ def plot_mct_exclude(mcts, ratio=False):
 
 def plotly_backend_exclude(args, pces, mcts, show, no_pce, no_mct, ratio=False):
     if not no_pce:
-        pce_fig = plot_pce_exclude(pces, ratio)
+        pce_fig = plot_pce_exclude(pces, ratio, args.verbose)
     if not no_mct:
-        mct_fig = plot_mct_exclude(mcts, ratio)
+        mct_fig = plot_mct_exclude(mcts, ratio, args.verbose)
 
     if show:
         if not no_pce:
@@ -498,9 +694,9 @@ def plotly_backend_exclude(args, pces, mcts, show, no_pce, no_mct, ratio=False):
 
 def plotly_backend_one(args, pces, mcts, show, no_pce, no_mct, ratio=False):
     if not no_pce:
-        pce_fig = plot_pce_one(pces, ratio)
+        pce_fig = plot_pce_one(pces, ratio, args.verbose)
     if not no_mct:
-        mct_fig = plot_mct_one(mcts, ratio)
+        mct_fig = plot_mct_one(mcts, ratio, args.verbose)
 
     if show:
         if not no_pce:
@@ -517,48 +713,75 @@ def plotly_backend_one(args, pces, mcts, show, no_pce, no_mct, ratio=False):
 
 
 def get_optimum(df):
-    print(df)
-    if pandas_library == 'pandas':
-        df = df.reset_index()
-    g = df.groupby(['confidence', 'fwh'])
-    s = drop_column(g.sum(), 'sample_size')
 
-    optimum = s.loc[s[0].max() == s[0]]
-    indexes = optimum.index.values
-    (alpha_star, fwh_star) = max(indexes, key=lambda t: (t[0], -t[1]))
-    return (alpha_star, fwh_star)
+    df = df.collect()
+    confidences = df['confidence'].unique().sort()
+    print('Local optimum per alpha threshold')
+    for confidence in confidences:
+        dfc = df.filter(pd.col('confidence') == confidence)
+        argmax = dfc.select(pd.col('success').arg_max())
+        argmax_df = (dfc.filter(pd.col('success') == argmax).sort(by=['confidence', 'fwhm']).select(
+            [pd.col("alpha"), pd.col("fwhm")]))
+        if argmax_df.height != 0:
+            (alpha_star, fwhm_star) = argmax_df.to_numpy().min(axis=0)
+            print(f' * {alpha_star:.6f}, {fwhm_star}')
+
+    return (alpha_star, fwhm_star)
 
 
 def parse_dataframe(dfs, get_test, **kwds):
     return list(map(lambda df: get_test(args, df, **kwds), dfs))
 
 
-def get_optimum_test(references, pce_tests, ext):
-    for reference, pce_test in zip(references, pce_tests):
+def get_optimum_test(references, tests, ext):
+    for reference, test in zip(references, tests):
         print('=' * 30)
         print(reference)
-        (alpha_star, fwh_star) = get_optimum(pce_test)
-        print(f'pce alpha*={alpha_star}, fwh*={fwh_star}')
+        (alpha_star, fwh_star) = get_optimum(test)
+        print(f'pce alpha*={alpha_star:.6f}, fwh*={fwh_star}')
         name = reference.replace(os.path.sep, '_')
-        pce_test.to_csv(f'{args.test}_{name}_pce{ext}.csv')
+        test.collect().to_pandas().to_csv(
+            f'{args.test}_{name}_pce{ext}.csv')
+
+
+def get_reference(reference):
+    paths = glob.glob(f'{reference}/*.pkl')
+    ldf = []
+    for path in tqdm.tqdm(paths):
+        with open(path, 'rb') as fib:
+            pkl = pickle.load(fib)
+            df = pd.DataFrame(pkl).lazy()
+            ldf.append(df)
+    return pd.concat(ldf)
+
+
+def memoize(arg, fun):
+    _raw_hash = hashlib.md5(arg.encode('utf-8')).hexdigest()
+    _mem_file = f'{_raw_hash}.pkl'
+    if os.path.exists(_mem_file):
+        with open(_mem_file, 'rb') as fi:
+            return pickle.load(fi)
+    else:
+        res = fun(arg)
+        with open(_mem_file, 'wb') as fo:
+            pickle.dump(res, fo)
+        return res
 
 
 def get_references(references):
     dfs = []
     for reference in references:
-        paths = glob.glob(f'{reference}/*.pkl')
-        ldf = []
-        for path in paths:
-            with open(path, 'rb') as fib:
-                pkl = pickle.load(fib)
-                df = pd.DataFrame(pkl)
-                ldf.append(add_prefix(df, reference))
-        dfs.append(pd.concat(ldf))
+        # ldf = memoize(reference, get_reference)
+        ldf = get_reference(reference)
+        ldf = ldf.with_columns(
+            (pd.Series(name='prefix', values=[reference]))
+        )
+        dfs.append(ldf)
     return dfs
 
 
 def plot_exclude(args):
-    pd.set_option('display.max_rows', 1500)
+    # pd.Config().set_tbl_rows(1500)
 
     references = args.reference
     show = args.show
@@ -569,15 +792,22 @@ def plot_exclude(args):
     dfs = get_references(references)
 
     if not args.no_pce:
-        pce_tests = parse_dataframe(
-            dfs,  get_pce_exclude, alpha=alpha, alternative='greater', ratio=args.ratio)
+        pce_tests = parse_dataframe(dfs,  get_pce_exclude,
+                                    alpha=alpha,
+                                    alternative='greater',
+                                    ratio=args.ratio,
+                                    high_confidence=args.high_confidence)
         get_optimum_test(references, pce_tests, ext)
     else:
         pce_tests = []
 
     if not args.no_mct:
-        mct_tests = parse_dataframe(
-            dfs,  get_mct_exclude, alpha=alpha, alternative='greater', ratio=args.ratio)
+        mct_tests = parse_dataframe(dfs,  get_mct_exclude,
+                                    alpha=alpha,
+                                    alternative='greater',
+                                    ratio=args.ratio,
+                                    method=args.mct_method,
+                                    high_confidence=args.high_confidence)
         get_optimum_test(references, mct_tests, ext)
     else:
         mct_tests = []
@@ -594,20 +824,25 @@ def plot_one(args):
     show = args.show
     alpha = args.meta_alpha
 
-    ext = '_ratio' if args.ratio else ''
-
     dfs = get_references(references)
     if not args.no_pce:
-        pce_tests = parse_dataframe(
-            dfs,  get_pce_one, alpha=alpha, ratio=args.ratio)
-        # get_optimum_test(references, pce_tests, ext)
+        pce_tests = parse_dataframe(dfs,  get_pce_one,
+                                    alpha=alpha,
+                                    alternative='greater',
+                                    ratio=args.ratio,
+                                    high_confidence=args.high_confidence
+                                    )
     else:
         pce_tests = []
 
     if not args.no_mct:
-        mct_tests = parse_dataframe(
-            dfs,  get_mct_one, alpha=alpha,  ratio=args.ratio)
-        # get_optimum_test(references, mct_tests, ext)
+        mct_tests = parse_dataframe(dfs,  get_mct_one,
+                                    alpha=alpha,
+                                    alternative='greater',
+                                    ratio=args.ratio,
+                                    method=args.mct_method,
+                                    high_confidence=args.high_confidence
+                                    )
     else:
         mct_tests = []
 
@@ -682,6 +917,10 @@ def parse_args():
     parser.add_argument('--ratio', action='store_true', help='Print ratio')
     parser.add_argument('--deviation', action='store_true',
                         help='Compute deviation statistics')
+    parser.add_argument('--mct-method', required=True)
+    parser.add_argument('--high-confidence', action='store_true',
+                        help='show confidence level 0.999 0.9999 0.99999 0.999999')
+    parser.add_argument('--verbose', action='store_true', help='verbose mode')
     return parser.parse_args()
 
 
