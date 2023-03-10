@@ -97,7 +97,8 @@ def get_pce_exclude(args, df, alpha,
     if high_confidence:
         df = df.filter(pd.col('confidence') > 0.99)
     else:
-        df = df.filter(pd.col('confidence') <= 0.99)
+        df = df.filter((0.5 <= pd.col('confidence')) &
+                       (pd.col('confidence') <= 0.999))
 
     indexes = ['reference_dataset', 'reference_subject', 'reference_template',
                'target_dataset', 'target_subject', 'target_template',
@@ -138,35 +139,14 @@ def get_pce_one(args, df, alpha,
     '''
     Return tests that passes
     '''
-    # def ttest(series_of_struct):
-    #     _values = [
-    #         scipy.stats.ttest_1samp(next_struct['fvr'],
-    #                                 popmean=next_struct['alpha'],
-    #                                 alternative=alternative).pvalue
-    #         for next_struct in series_of_struct
-    #     ]
-    #     return pd.Series(values=_values)
-
-    # def ttest_ci(series_of_struct):
-    #     _values = [
-    #         tuple(scipy.stats.ttest_1samp(next_struct['fvr'],
-    #                                       popmean=next_struct['alpha'],
-    #                                       alternative=alternative).confidence_interval(confidence_level=1-alpha))
-    #         for next_struct in series_of_struct
-    #     ]
-    #     return pd.Series(values=_values)
 
     df = df.filter((pd.col('method') == 'pce'))
 
     if high_confidence:
         df = df.filter(pd.col('confidence') > 0.99)
     else:
-        df = df.filter(pd.col('confidence') <= 0.99)
-
-    # indexes = ['reference_dataset', 'reference_subject', 'reference_template',
-    #            'target_dataset', 'target_subject', 'target_template',
-    #            'confidence', 'fwhm', 'alpha',
-    #            'mask']
+        df = df.filter((0.5 <= pd.col('confidence')) &
+                       (pd.col('confidence') <= 0.999))
 
     df = df.with_columns(
         (
@@ -174,19 +154,6 @@ def get_pce_one(args, df, alpha,
             (pd.col('reject') / pd.col('tests')).alias('fvr')
         )
     )
-
-    # df = df.groupby(indexes).agg(
-    #     [
-    #         pd.col('fvr'),
-    #         pd.col('fvr').mean().alias('ratio')
-    #     ]
-    # )
-
-    # df = df.with_columns(
-    #     (
-    #         (pd.struct(["fvr", "alpha"]).map(ttest)).alias('pvalue')
-    #     )
-    # )
 
     df = df.with_columns(
         (pd.col('fvr') <= pd.col('alpha')).alias('success')
@@ -250,7 +217,8 @@ def get_mct_exclude(args, df, alpha,
     if high_confidence:
         df = df.filter(pd.col('confidence') > 0.99)
     else:
-        df = df.filter(pd.col('confidence') <= 0.99)
+        df = df.filter((0.5 <= pd.col('confidence')) &
+                       (pd.col('confidence') <= 0.999))
 
     df = df.with_columns(
         (
@@ -286,27 +254,14 @@ def get_mct_one(args, df, alpha,
     '''
     Return tests that passes
     '''
-    # def binom(series_of_struct):
-    #     _values = [
-    #         scipy.stats.binomtest(k=next_struct['fails'],
-    #                               n=next_struct['trials'],
-    #                               p=next_struct['alpha'],
-    #                               alternative=alternative).pvalue
-    #         for next_struct in series_of_struct
-    #     ]
-    #     return pd.Series(values=_values)
-
-    # indexes = ['reference_dataset', 'reference_subject', 'reference_template',
-    #            'target_dataset', 'target_subject', 'target_template',
-    #            'confidence', 'fwhm', 'alpha',
-    #            'mask']
 
     df = df.filter((pd.col('method') == method))
 
     if high_confidence:
         df = df.filter(pd.col('confidence') > 0.99)
     else:
-        df = df.filter(pd.col('confidence') <= 0.99)
+        df = df.filter((0.5 <= pd.col('confidence')) &
+                       (pd.col('confidence') <= 0.999))
 
     df = df.with_columns(
         (
@@ -315,18 +270,6 @@ def get_mct_one(args, df, alpha,
         )
     )
 
-    # df = df.groupby(indexes).agg(
-    #     [
-    #         (pd.col('fail').sum()).alias('fails'),
-    #         (pd.col('fail').count()).alias('trials'),
-    #         (pd.col('fail').mean()).alias('ratio')
-    #     ]
-    # )
-
-    # df = df.with_columns(
-    #     (pd.struct(["fails", "trials", "alpha"]).map(binom).alias('pvalue'))
-    # )
-
     df = df.with_columns(
         (pd.col('reject') <= 0).alias('success')
     )
@@ -334,41 +277,42 @@ def get_mct_one(args, df, alpha,
     return df
 
 
-def plot_pce_exclude(pces, ratio=False, verbose=False):
+def plot_test_exclude(tests, ratio=False, verbose=False):
 
     if ratio:
         colors = 'RdYlGn_r'
         zmin = 0
         zmax = 1
     else:
-        colors = ['rgb(165,0,38)', 'forestgreen'] + \
-            (['orange'] if args.show_nan else [])
+        colors = ['#E6020D', '#007A0E']
+        colors = ['#d60000', '#006b0c']
         zmin = 0
-        zmax = 2 if args.show_nan else 1
+        zmax = 1
 
-    subjects = pces[0].collect().select(
+    subjects = tests[0].collect().select(
         pd.col('reference_subject')).unique().sort(by=['reference_subject']).to_dict(as_series=False)['reference_subject']
-    cols = len(pces)
+    cols = len(tests)
     rows = len(subjects)
 
-    pce_fig = make_subplots(rows=rows, cols=cols,
-                            column_titles=['RR', 'RS', 'RR+RS'],
-                            row_titles=subjects,
-                            shared_xaxes=True,
-                            shared_yaxes=True,
-                            x_title='FWHM (mm)',
-                            y_title='Confidence level',
-                            vertical_spacing=0.02,
-                            horizontal_spacing=0.01)
+    test_fig = make_subplots(rows=rows, cols=cols,
+                             column_titles=['RR', 'RS', 'RR+RS'],
+                             row_titles=subjects,
+                             shared_xaxes=True,
+                             shared_yaxes=True,
+                             x_title='FWHM (mm)',
+                             y_title='Confidence level',
+                             vertical_spacing=0.005,
+                             horizontal_spacing=0.005
+                             )
 
-    for col, pce in enumerate(pces, start=1):
+    for col, test in enumerate(tests, start=1):
 
         for row, subject in enumerate(subjects, start=1):
 
-            for a in pce_fig['layout']['annotations']:
+            for a in test_fig['layout']['annotations']:
                 a['textangle'] = 0
 
-            pce_subject = pce.filter(pd.col('reference_subject') == subject).sort(
+            pce_subject = test.filter(pd.col('reference_subject') == subject).sort(
                 by=['confidence', 'fwhm'], descending=[False, False]).collect()
 
             if ratio:
@@ -392,291 +336,307 @@ def plot_pce_exclude(pces, ratio=False, verbose=False):
                 print(pivot)
 
             im = px.imshow(z,
-                           x=[str(f) for f in fwhms],
+                           x=[str(int(float(f))) for f in fwhms],
                            y=[str(f) for f in confidences],
                            zmin=zmin, zmax=zmax,
                            color_continuous_scale=colors,
                            origin='lower')
 
-            pce_fig.add_trace(im.data[0], row=row, col=col)
+            test_fig.add_trace(im.data[0], row=row, col=col)
 
-    pce_fig.update_layout(coloraxis=dict(colorscale=colors))
-    pce_fig.update_coloraxes(cmin=0, cmax=1)
-    pce_fig.update_layout(margin=dict(t=25, b=60))
+    test_fig.for_each_xaxis(
+        lambda xaxis: xaxis.tickfont.update(size=7))
+    test_fig.for_each_yaxis(
+        lambda yaxis: yaxis.tickfont.update(size=7))
+
+    test_fig.update_xaxes(tickangle=0)
+    test_fig.update_layout(coloraxis=dict(colorscale=colors))
+    test_fig.update_coloraxes(cmin=0, cmax=1)
+    test_fig.update_layout(margin=dict(t=25, b=40, l=40, r=60))
+
+    test_fig.update_annotations(font=dict(size=12))
+    test_fig.layout['annotations'][-1]['xshift'] = -15
+    test_fig.layout['annotations'][-2]['yshift'] = -10
 
     if not args.ratio:
-        pce_fig.update_traces(showlegend=False)
-        pce_fig.update_coloraxes(showscale=False)
+        test_fig.update_traces(showlegend=False)
+        test_fig.update_coloraxes(showscale=False)
     else:
-        pce_fig.update_layout(coloraxis_colorbar_x=1.05)
+        test_fig.update_layout(coloraxis_colorbar_x=1.05)
 
-    pce_fig['layout']['annotations'][-1]['textangle'] = -90
+    test_fig['layout']['annotations'][-1]['textangle'] = -90
 
-    return pce_fig
+    return test_fig
 
 
-def plot_pce_one(pces, ratio=False, verbose=False):
+def get_parameters_heatmap_subject(test, confidence, fwhm, subjects, verbose):
+    cell = test.filter((pd.col('confidence') == confidence) & (
+        pd.col('fwhm') == fwhm)).sort(by=['confidence',
+                                          'fwhm',
+                                          'reference_subject',
+                                          'target_subject'])
 
-    if ratio:
-        colors = 'RdYlGn_r'
-        zmin = 0
-        zmax = 1
-    else:
-        colors = ['rgb(165,0,38)', 'forestgreen'] + \
-            (['orange'] if args.show_nan else [])
-        zmin = 0
-        zmax = 2 if args.show_nan else 1
+    pivot_index = ['reference_subject']
+    pivot_columns = ['target_subject']
+    pivot = cell.pivot(index=pivot_index,
+                       columns=pivot_columns,
+                       values='success')
 
-    subjects = pces[0].collect().select(
-        pd.col('reference_subject')).unique().sort(by=['reference_subject']).to_dict(as_series=False)['reference_subject']
+    x = pivot['reference_subject'].to_numpy()
+    y = pivot.columns[1:]
+    z = pivot.with_columns(
+        (pd.col(subject).cast(pd.Int8)
+         for subject in subjects)
+    )
 
-    pce_figs = []
+    z = np.rot90(z.to_numpy()[..., 1:])
 
-    for pce in pces:
+    if verbose:
+        print('=' * 30)
+        print(f'Confidence: {confidence}, FWHM: {fwhm}')
+        print(pivot)
+        print('x', x.shape)
+        print(x)
+        print('y', len(y))
+        print(y)
+        print('z', z.shape)
+        print(z)
 
-        pce = pce.collect()
+    return (x, y, z)
 
-        confidences = pce['confidence'].unique().sort(
-            descending=True).to_numpy()
-        fwhms = pce['fwhm'].unique().sort().to_numpy()
 
-        print(confidences)
-        print(fwhms)
+def get_parameters_heatmap_template(test, confidence, fwhm, templates, verbose):
+    cell = test.filter((pd.col('confidence') == confidence) & (
+        pd.col('fwhm') == fwhm)).sort(by=['confidence',
+                                          'fwhm',
+                                          'reference_subject',
+                                          'target_template'])
 
-        rows = confidences.size
-        cols = fwhms.size
+    pivot_index = ['reference_subject']
+    pivot_columns = ['target_template']
+    pivot = cell.pivot(index=pivot_index,
+                       columns=pivot_columns,
+                       values='success')
 
-        pce_fig = make_subplots(rows=rows, cols=cols,
-                                column_titles=[str(f) for f in fwhms],
-                                row_titles=[str(c) for c in confidences],
-                                shared_xaxes=True,
-                                shared_yaxes=True,
-                                x_title='FWHM (mm)',
-                                y_title='Confidence level',
-                                vertical_spacing=0,
-                                horizontal_spacing=0)
+    x = pivot.columns[1:]
+    y = pivot['reference_subject'].to_numpy()
+    z = pivot.with_columns(
+        (pd.col(template).cast(pd.Int8)
+         for template in templates)
+    )
+    z = z.to_numpy()[..., 1:]
 
-        for row, confidence in enumerate(confidences, start=1):
+    if verbose:
+        print('=' * 30)
+        print(f'Confidence: {confidence}, FWHM: {fwhm}')
+        print(pivot)
+        print('x', len(x))
+        print(x)
+        print('y', y.shape)
+        print(y)
+        print('z', z.shape)
+        print(z)
 
-            for a in pce_fig['layout']['annotations']:
-                a['textangle'] = 0
+    return (x, y, z)
 
-            for col, fwhm in enumerate(fwhms, start=1):
 
-                cell = pce.filter((pd.col('confidence') == confidence) & (
-                    pd.col('fwhm') == fwhm)).sort(by=['confidence',
-                                                      'fwhm',
-                                                      'reference_subject',
-                                                      'target_subject'])
-                pivot = cell.pivot(index=['reference_subject'], columns=[
-                    'target_subject'], values='success')
+def plot_test_template(tests, verbose=False):
 
-                x = pivot['reference_subject'].to_numpy()
-                y = pivot.columns[1:]
+    colors = ['#d60000', '#006b0c']
+    zmin = 0
+    zmax = 1
+
+    tests_fig = []
+
+    for test in tests:
+
+        test = test.collect()
+
+        subjects = test.select(
+            pd.col('reference_subject')).unique().sort(by=['reference_subject']).to_dict(as_series=False)['reference_subject']
+
+        templates = test['target_template'].unique().sort().to_numpy()
+        cols = templates.size
+        rows = len(subjects)
+
+        column_titles = [str(int(t.split('Noised')[-1]) / 10) + '%'
+                         for t in templates]
+
+        test_fig = make_subplots(rows=rows, cols=cols,
+                                 column_titles=column_titles,
+                                 row_titles=subjects,
+                                 shared_xaxes=True,
+                                 shared_yaxes=True,
+                                 x_title='FWHM (mm)',
+                                 y_title='Confidence level',
+                                 vertical_spacing=0.005,
+                                 horizontal_spacing=0.005
+                                 )
+
+        for col, template in enumerate(templates, start=1):
+
+            for row, subject in enumerate(subjects, start=1):
+
+                for a in test_fig['layout']['annotations']:
+                    a['textangle'] = 0
+
+                pce_subject = test.filter((pd.col('reference_subject') == subject) & (pd.col('target_template') == template)).sort(
+                    by=['confidence', 'fwhm'], descending=[False, False])
+
+                pivot = pce_subject.pivot(index=['confidence'], columns=[
+                    'fwhm'], values='success')
+
+                confidences = pivot['confidence'].to_numpy()
+                fwhms = pivot.columns[1:]
                 z = pivot.to_numpy()[..., 1:]
 
                 if verbose:
-                    print('='*30)
-                    print(f'Confidence: {confidence}, FWHM: {fwhm}')
-                    print('x', x.shape)
-                    print(x)
-                    print('y', len(y))
-                    print(y)
+                    print(subject)
+                    print('x', confidences.shape)
+                    print(confidences)
+                    print('y', len(fwhms))
+                    print(fwhms)
                     print('z', z.shape)
                     print(pivot)
-                    print(z)
 
                 im = px.imshow(z,
-                               x=[str(i) for i in x],
-                               y=[str(i) for i in y],
+                               x=[str(int(float(f))) for f in fwhms],
+                               y=[str(f) for f in confidences],
                                zmin=zmin, zmax=zmax,
                                color_continuous_scale=colors,
                                origin='lower')
 
-                pce_fig.add_trace(im.data[0], row=row, col=col)
+                test_fig.add_trace(im.data[0], row=row, col=col)
 
-            pce_fig.update_layout(coloraxis=dict(colorscale=colors))
-            pce_fig.update_coloraxes(cmin=0, cmax=1)
-            pce_fig.update_layout(margin=dict(t=25, b=60))
+        test_fig.for_each_xaxis(
+            lambda xaxis: xaxis.tickfont.update(size=7))
+        test_fig.for_each_yaxis(
+            lambda yaxis: yaxis.tickfont.update(size=7))
+
+        test_fig.update_xaxes(tickangle=0)
+        test_fig.update_layout(coloraxis=dict(colorscale=colors))
+        test_fig.update_coloraxes(cmin=0, cmax=1)
+        test_fig.update_layout(margin=dict(t=25, b=40, l=50, r=60))
+
+        test_fig.update_annotations(font=dict(size=10))
+        test_fig.layout['annotations'][-1]['xshift'] = -20
+        test_fig.layout['annotations'][-2]['yshift'] = -10
+
+        if not args.ratio:
+            test_fig.update_traces(showlegend=False)
+            test_fig.update_coloraxes(showscale=False)
+        else:
+            test_fig.update_layout(coloraxis_colorbar_x=1.05)
+
+        test_fig['layout']['annotations'][-1]['textangle'] = -90
+
+        tests_fig.append(test_fig)
+
+    return tests_fig
+
+
+def plot_test_one(labels, tests, ratio=False, verbose=False, template=False):
+
+    if ratio:
+        colors = 'RdYlGn_r'
+        zmin = 0
+        zmax = 1
+    else:
+        colors = ['#d60000', '#006b0c']
+        zmin = 0
+        zmax = 1
+
+    subjects = tests[0].collect().select(
+        pd.col('reference_subject')).unique().sort(by=['reference_subject']).to_dict(as_series=False)['reference_subject']
+
+    pce_figs = []
+
+    for label, test in zip(labels, tests):
+
+        print(label)
+
+        test = test.collect()
+
+        confidences = test['confidence'].unique().sort(
+            descending=True).to_numpy()
+        fwhms = test['fwhm'].unique().sort().to_numpy()
+        target_templates = test['target_template'].unique().sort(
+            descending=True).to_numpy()
+
+        rows = confidences.size
+        cols = fwhms.size
+
+        test_fig = make_subplots(rows=rows, cols=cols,
+                                 column_titles=[str(int(f)) for f in fwhms],
+                                 row_titles=[str(c) for c in confidences],
+                                 shared_xaxes=True,
+                                 shared_yaxes=True,
+                                 x_title='FWHM (mm)',
+                                 y_title='Confidence level',
+                                 vertical_spacing=0.0005,
+                                 horizontal_spacing=0.0005)
+
+        for a in test_fig['layout']['annotations']:
+            a['textangle'] = 0
+
+        econfidences = enumerate(confidences, start=1)
+        efwhms = enumerate(fwhms, start=1)
+
+        for (row, confidence), (col, fwhm) in tqdm.tqdm(itertools.product(econfidences, efwhms), total=rows*cols):
+
+            if template:
+                (x, y, z) = get_parameters_heatmap_template(test,
+                                                            confidence,
+                                                            fwhm,
+                                                            target_templates,
+                                                            verbose=args.verbose)
+            else:
+                (x, y, z) = get_parameters_heatmap_subject(test,
+                                                           confidence,
+                                                           fwhm,
+                                                           subjects,
+                                                           verbose=args.verbose)
+
+            im = px.imshow(z,
+                           x=[str(i) for i in x],
+                           y=[str(i) for i in y],
+                           zmin=zmin, zmax=zmax,
+                           color_continuous_scale=colors,
+                           origin='upper')
+            test_fig.add_trace(im.data[0], row=row, col=col)
+            test_fig.update_layout(coloraxis=dict(colorscale=colors))
+            test_fig.update_coloraxes(cmin=0, cmax=1)
+            test_fig.update_layout(margin=dict(t=25, b=25, r=10, l=20))
+            test_fig.layout['annotations'][-1]['xshift'] = -5
+            test_fig.layout['annotations'][-2]['yshift'] = -5
 
             if not args.ratio:
-                pce_fig.update_traces(showlegend=False)
-                pce_fig.update_coloraxes(showscale=False)
+                test_fig.update_traces(showlegend=False)
+                test_fig.update_coloraxes(showscale=False)
             else:
-                pce_fig.update_layout(coloraxis_colorbar_x=1.05)
+                test_fig.update_layout(coloraxis_colorbar_x=1.05)
 
-            pce_fig['layout']['annotations'][-1]['textangle'] = -90
+            test_fig['layout']['annotations'][-1]['textangle'] = -90
 
-        pce_figs.append(pce_fig)
+        test_fig.update_xaxes(showticklabels=False)
+        test_fig.update_yaxes(showticklabels=False)
+        test_fig.update_layout_images(xaxis_showticklabels=False,
+                                      yaxis_showticklabels=False,
+                                      font=dict(size=8))
+        test_fig.update_layout(xaxis=dict(side='bottom'),
+                               yaxis=dict(side='left'),
+                               font=dict(size=8),
+                               annotations=[dict(font=dict(size=8))])
+        pce_figs.append(test_fig)
 
-    return pce_fig
-
-
-def plot_mct_one(mcts, ratio=False, verbose=False):
-
-    title = f'{args.title} ({args.meta_alpha})'
-    subjects = mcts[0].collect().select(
-        pd.col('reference_subject')).unique().sort(by=['reference_subject']).to_dict(as_series=False)['reference_subject']
-    cols = len(mcts)
-    rows = len(subjects)
-
-    if ratio:
-        colors = 'RdYlGn_r'
-        zmin = 0
-        zmax = 1
-    else:
-        colors = ['rgb(165,0,38)', 'forestgreen'] + \
-            (['orange'] if args.show_nan else [])
-        zmin = 0
-        zmax = 2 if args.show_nan else 1
-
-    mct_fig = make_subplots(rows=rows, cols=cols,
-                            column_titles=['RR', 'RS', 'RR+RS'],
-                            row_titles=subjects,
-                            shared_xaxes=True,
-                            shared_yaxes=True,
-                            x_title='FWHM (mm)',
-                            y_title='Confidence level',
-                            vertical_spacing=0.02,
-                            horizontal_spacing=0.01)
-
-    for col, mct in enumerate(mcts, start=1):
-
-        for a in mct_fig['layout']['annotations']:
-            a['textangle'] = 0
-
-        for row, subject in enumerate(subjects, start=1):
-
-            mct_subject = mct.filter(pd.col('reference_subject') == subject).sort(
-                by=['confidence', 'fwhm'], descending=[False, False]).collect()
-
-            if ratio:
-                pivot = mct_subject.pivot(index=['confidence'], columns=[
-                    'fwhm'], values='ratio')
-            else:
-                pivot = mct_subject.pivot(index=['confidence'], columns=[
-                    'fwhm'], values='success')
-
-            confidences = pivot['confidence'].to_numpy()
-            fwhms = pivot.columns[1:]
-            z = pivot.to_numpy()[..., 1:]
-
-            if verbose:
-                print(subject)
-                print('x', confidences.shape)
-                print(confidences)
-                print('y', len(fwhms))
-                print(fwhms)
-                print('z', z.shape)
-                print(pivot)
-
-            im = px.imshow(z,
-                           x=[str(f) for f in fwhms],
-                           y=[str(f) for f in confidences],
-                           zmin=zmin, zmax=zmax,
-                           color_continuous_scale=colors,
-                           origin='lower')
-            # print(im)
-            mct_fig.add_trace(im.data[0], row=row, col=col)
-
-    mct_fig.update_layout(coloraxis=dict(colorscale=colors))
-    mct_fig.update_layout(title='')
-    if not args.ratio:
-        mct_fig.update_traces(showlegend=False)
-        mct_fig.update_coloraxes(showscale=False)
-    else:
-        mct_fig.update_layout(coloraxis_colorbar_x=1.05)
-    mct_fig.update_layout(margin=dict(t=25))
-    mct_fig['layout']['annotations'][-1]['textangle'] = -90
-
-    return mct_fig
-
-
-def plot_mct_exclude(mcts, ratio=False, verbose=False):
-
-    title = f'{args.title} ({args.meta_alpha})'
-    subjects = mcts[0].collect().select(
-        pd.col('reference_subject')).unique().sort(by=['reference_subject']).to_dict(as_series=False)['reference_subject']
-    cols = len(mcts)
-    rows = len(subjects)
-
-    if ratio:
-        colors = 'RdYlGn_r'
-        zmin = 0
-        zmax = 1
-    else:
-        colors = ['rgb(165,0,38)', 'forestgreen'] + \
-            (['orange'] if args.show_nan else [])
-        zmin = 0
-        zmax = 2 if args.show_nan else 1
-
-    mct_fig = make_subplots(rows=rows, cols=cols,
-                            column_titles=['RR', 'RS', 'RR+RS'],
-                            row_titles=subjects,
-                            shared_xaxes=True,
-                            shared_yaxes=True,
-                            x_title='FWHM (mm)',
-                            y_title='Confidence level',
-                            vertical_spacing=0.02,
-                            horizontal_spacing=0.01)
-
-    for col, mct in enumerate(mcts, start=1):
-
-        for a in mct_fig['layout']['annotations']:
-            a['textangle'] = 0
-
-        for row, subject in enumerate(subjects, start=1):
-
-            mct_subject = mct.filter(pd.col('reference_subject') == subject).sort(
-                by=['confidence', 'fwhm'], descending=[False, False]).collect()
-
-            if ratio:
-                pivot = mct_subject.pivot(index=['confidence'], columns=[
-                    'fwhm'], values='ratio')
-            else:
-                pivot = mct_subject.pivot(index=['confidence'], columns=[
-                    'fwhm'], values='success')
-
-            confidences = pivot['confidence'].to_numpy()
-            fwhms = pivot.columns[1:]
-            z = pivot.to_numpy()[..., 1:]
-
-            if verbose:
-                print(subject)
-                print('x', confidences.shape)
-                print(confidences)
-                print('y', len(fwhms))
-                print(fwhms)
-                print('z', z.shape)
-                print(pivot)
-
-            im = px.imshow(z,
-                           x=[str(f) for f in fwhms],
-                           y=[str(f) for f in confidences],
-                           zmin=zmin, zmax=zmax,
-                           color_continuous_scale=colors,
-                           origin='lower')
-            # print(im)
-            mct_fig.add_trace(im.data[0], row=row, col=col)
-
-    mct_fig.update_layout(coloraxis=dict(colorscale=colors))
-    mct_fig.update_layout(title='')
-    if not args.ratio:
-        mct_fig.update_traces(showlegend=False)
-        mct_fig.update_coloraxes(showscale=False)
-    else:
-        mct_fig.update_layout(coloraxis_colorbar_x=1.05)
-    mct_fig.update_layout(margin=dict(t=25))
-    mct_fig['layout']['annotations'][-1]['textangle'] = -90
-
-    return mct_fig
+    return pce_figs
 
 
 def plotly_backend_exclude(args, pces, mcts, show, no_pce, no_mct, ratio=False):
     if not no_pce:
-        pce_fig = plot_pce_exclude(pces, ratio, args.verbose)
+        pce_fig = plot_test_exclude(pces, ratio, args.verbose)
     if not no_mct:
-        mct_fig = plot_mct_exclude(mcts, ratio, args.verbose)
+        mct_fig = plot_test_exclude(mcts, ratio, args.verbose)
 
     if show:
         if not no_pce:
@@ -687,29 +647,50 @@ def plotly_backend_exclude(args, pces, mcts, show, no_pce, no_mct, ratio=False):
     ext = '_ratio' if args.ratio else ''
 
     if not no_pce:
-        pce_fig.write_image(f'{args.test}_pce{ext}.pdf', scale=5)
+        pce_fig.write_image(f'{args.test}_pce{ext}.pdf',
+                            scale=5, width=720, height=1024)
     if not no_mct:
-        mct_fig.write_image(f'{args.test}_mct{ext}.pdf', scale=5)
+        mct_fig.write_image(f'{args.test}_mct{ext}_{args.mct_method}.pdf', scale=5,
+                            width=720, height=1024)
 
 
 def plotly_backend_one(args, pces, mcts, show, no_pce, no_mct, ratio=False):
+    labels = ['RR', 'RS', 'RR+RS']
     if not no_pce:
-        pce_fig = plot_pce_one(pces, ratio, args.verbose)
+        print('PCE')
+        if args.template:
+            pce_fig = plot_test_template(pces, args.verbose)
+        else:
+            pce_fig = plot_test_one(labels, pces, ratio,
+                                    args.verbose, args.template)
     if not no_mct:
-        mct_fig = plot_mct_one(mcts, ratio, args.verbose)
+        print(f'MCT {args.mct_method}')
+        if args.template:
+            mct_fig = plot_test_template(mcts, args.verbose)
+        else:
+            mct_fig = plot_test_one(labels, mcts, ratio,
+                                    args.verbose, args.template)
 
     if show:
         if not no_pce:
-            pce_fig.show()
+            for fig in pce_fig:
+                fig.show()
         if not no_mct:
-            mct_fig.show()
+            for fig in mct_fig:
+                fig.show()
 
-    ext = '_ratio' if args.ratio else ''
-
+    ext = ('_ratio' if args.ratio else '') + \
+        ('_template' if args.template else '')
+    dim = dict(width=720 * 3, height=720) if args.template else dict()
     if not no_pce:
-        pce_fig.write_image(f'{args.test}_pce{ext}.pdf', scale=5)
+        for i, fig in zip(labels, pce_fig):
+            print(f'write PCE {i}')
+            fig.write_image(f'{args.test}_pce{ext}_{i}.svg', scale=10, **dim)
     if not no_mct:
-        mct_fig.write_image(f'{args.test}_mct{ext}.pdf', scale=5)
+        for i, fig in zip(labels, mct_fig):
+            print(f'write MCT {i}')
+            fig.write_image(
+                f'{args.test}_mct_{args.mct_method}_{ext}_{i}.svg', scale=10, **dim)
 
 
 def get_optimum(df):
@@ -717,10 +698,16 @@ def get_optimum(df):
     df = df.collect()
     confidences = df['confidence'].unique().sort()
     print('Local optimum per alpha threshold')
+    (alpha_star, fwhm_star) = (-1, -1)
+
+    succ = df.groupby(['confidence', 'fwhm']).agg(
+        [pd.col('success').sum().alias('successes')])
+    succ = succ .with_columns((1 - pd.col('confidence')).alias('alpha'))
+    max = succ.select(pd.col('successes').max())
+
     for confidence in confidences:
-        dfc = df.filter(pd.col('confidence') == confidence)
-        argmax = dfc.select(pd.col('success').arg_max())
-        argmax_df = (dfc.filter(pd.col('success') == argmax).sort(by=['confidence', 'fwhm']).select(
+        dfc = succ.filter(pd.col('confidence') == confidence)
+        argmax_df = (dfc.filter(pd.col('successes') == max).sort(by=['confidence', 'fwhm']).select(
             [pd.col("alpha"), pd.col("fwhm")]))
         if argmax_df.height != 0:
             (alpha_star, fwhm_star) = argmax_df.to_numpy().min(axis=0)
@@ -733,15 +720,15 @@ def parse_dataframe(dfs, get_test, **kwds):
     return list(map(lambda df: get_test(args, df, **kwds), dfs))
 
 
-def get_optimum_test(references, tests, ext):
+def get_optimum_test(references, test_name, tests, ext):
     for reference, test in zip(references, tests):
         print('=' * 30)
         print(reference)
         (alpha_star, fwh_star) = get_optimum(test)
-        print(f'pce alpha*={alpha_star:.6f}, fwh*={fwh_star}')
+        print(f'{test_name} alpha*={alpha_star:.6f}, fwh*={fwh_star}')
         name = reference.replace(os.path.sep, '_')
         test.collect().to_pandas().to_csv(
-            f'{args.test}_{name}_pce{ext}.csv')
+            f'{args.test}_{name}_{test_name}{ext}.csv')
 
 
 def get_reference(reference):
@@ -792,23 +779,23 @@ def plot_exclude(args):
     dfs = get_references(references)
 
     if not args.no_pce:
-        pce_tests = parse_dataframe(dfs,  get_pce_exclude,
+        pce_tests = parse_dataframe(dfs, get_pce_exclude,
                                     alpha=alpha,
-                                    alternative='greater',
+                                    alternative='two-sided',
                                     ratio=args.ratio,
                                     high_confidence=args.high_confidence)
-        get_optimum_test(references, pce_tests, ext)
+        get_optimum_test(references, 'pce', pce_tests, ext)
     else:
         pce_tests = []
 
     if not args.no_mct:
-        mct_tests = parse_dataframe(dfs,  get_mct_exclude,
+        mct_tests = parse_dataframe(dfs, get_mct_exclude,
                                     alpha=alpha,
                                     alternative='greater',
                                     ratio=args.ratio,
                                     method=args.mct_method,
                                     high_confidence=args.high_confidence)
-        get_optimum_test(references, mct_tests, ext)
+        get_optimum_test(references, 'mct', mct_tests, ext)
     else:
         mct_tests = []
 
@@ -846,11 +833,18 @@ def plot_one(args):
     else:
         mct_tests = []
 
-    plotly_backend_one(args,
-                       pce_tests, mct_tests, show,
-                       no_pce=args.no_pce,
-                       no_mct=args.no_mct,
-                       ratio=args.ratio)
+    if args.ieee:
+        plotly_backend_exclude(args,
+                               pce_tests, mct_tests, show,
+                               no_pce=args.no_pce,
+                               no_mct=args.no_mct,
+                               ratio=args.ratio)
+    else:
+        plotly_backend_one(args,
+                           pce_tests, mct_tests, show,
+                           no_pce=args.no_pce,
+                           no_mct=args.no_mct,
+                           ratio=args.ratio)
 
 
 def plot_deviation_exclude(args):
@@ -921,6 +915,9 @@ def parse_args():
     parser.add_argument('--high-confidence', action='store_true',
                         help='show confidence level 0.999 0.9999 0.99999 0.999999')
     parser.add_argument('--verbose', action='store_true', help='verbose mode')
+    parser.add_argument('--template', action='store_true',
+                        help='compare agains template')
+    parser.add_argument('--ieee', action='store_true')
     return parser.parse_args()
 
 
