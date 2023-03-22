@@ -446,36 +446,38 @@ def plot_test_template(tests, verbose=False):
     zmin = 0
     zmax = 1
 
-    tests_fig = []
+    tests = [test.collect() for test in tests]
+    nb_tests = len(tests)
+    test = tests[0]
 
-    for test in tests:
+    subjects = test.select(
+        pd.col('reference_subject')).unique().sort(by=['reference_subject']).to_dict(as_series=False)['reference_subject']
 
-        test = test.collect()
+    templates = test['target_template'].unique().sort().to_numpy()
 
-        subjects = test.select(
-            pd.col('reference_subject')).unique().sort(by=['reference_subject']).to_dict(as_series=False)['reference_subject']
+    rows = templates.size
+    cols = len(subjects)
 
-        templates = test['target_template'].unique().sort().to_numpy()
-        cols = templates.size
-        rows = len(subjects)
+    column_titles = subjects
+    row_titles = [str(int(t.split('Noised')[-1]) / 10) + '%'
+                  for t in templates] * nb_tests
 
-        column_titles = [str(int(t.split('Noised')[-1]) / 10) + '%'
-                         for t in templates]
+    test_fig = make_subplots(rows=rows * nb_tests, cols=cols,
+                             column_titles=column_titles,
+                             row_titles=row_titles,
+                             shared_xaxes=True,
+                             shared_yaxes=True,
+                             x_title='FWHM (mm)',
+                             y_title='Confidence level',
+                             vertical_spacing=0.00001,
+                             horizontal_spacing=0.001
+                             )
 
-        test_fig = make_subplots(rows=rows, cols=cols,
-                                 column_titles=column_titles,
-                                 row_titles=subjects,
-                                 shared_xaxes=True,
-                                 shared_yaxes=True,
-                                 x_title='FWHM (mm)',
-                                 y_title='Confidence level',
-                                 vertical_spacing=0.005,
-                                 horizontal_spacing=0.005
-                                 )
+    for i, test in enumerate(tests, start=0):
 
-        for col, template in enumerate(templates, start=1):
+        for row, template in enumerate(templates, start=1):
 
-            for row, subject in enumerate(subjects, start=1):
+            for col, subject in enumerate(subjects, start=1):
 
                 for a in test_fig['layout']['annotations']:
                     a['textangle'] = 0
@@ -506,12 +508,12 @@ def plot_test_template(tests, verbose=False):
                                color_continuous_scale=colors,
                                origin='lower')
 
-                test_fig.add_trace(im.data[0], row=row, col=col)
+                test_fig.add_trace(im.data[0], row=row + i * rows, col=col)
 
         test_fig.for_each_xaxis(
             lambda xaxis: xaxis.tickfont.update(size=7))
         test_fig.for_each_yaxis(
-            lambda yaxis: yaxis.tickfont.update(size=7))
+            lambda yaxis: yaxis.tickfont.update(size=3))
 
         test_fig.update_xaxes(tickangle=0)
         test_fig.update_layout(coloraxis=dict(colorscale=colors))
@@ -530,9 +532,9 @@ def plot_test_template(tests, verbose=False):
 
         test_fig['layout']['annotations'][-1]['textangle'] = -90
 
-        tests_fig.append(test_fig)
+        # tests_fig.append(test_fig)
 
-    return tests_fig
+    return test_fig
 
 
 def plot_test_one(labels, tests, ratio=False, verbose=False, template=False):
@@ -673,24 +675,19 @@ def plotly_backend_one(args, pces, mcts, show, no_pce, no_mct, ratio=False):
 
     if show:
         if not no_pce:
-            for fig in pce_fig:
-                fig.show()
+            pce_fig.show()
         if not no_mct:
-            for fig in mct_fig:
-                fig.show()
+            mct_fig.show()
 
     ext = ('_ratio' if args.ratio else '') + \
         ('_template' if args.template else '')
     dim = dict(width=720 * 3, height=720) if args.template else dict()
     if not no_pce:
-        for i, fig in zip(labels, pce_fig):
-            print(f'write PCE {i}')
-            fig.write_image(f'{args.test}_pce{ext}_{i}.svg', scale=10, **dim)
+        pce_fig.write_image(
+            f'{args.test}_pce_{ext}.svg', scale=10, **dim)
     if not no_mct:
-        for i, fig in zip(labels, mct_fig):
-            print(f'write MCT {i}')
-            fig.write_image(
-                f'{args.test}_mct_{args.mct_method}_{ext}_{i}.svg', scale=10, **dim)
+        mct_fig.write_image(
+            f'{args.test}_mct_{args.mct_method}_{ext}.svg', scale=10, **dim)
 
 
 def get_optimum(df):
@@ -813,7 +810,7 @@ def plot_one(args):
 
     dfs = get_references(references)
     if not args.no_pce:
-        pce_tests = parse_dataframe(dfs,  get_pce_one,
+        pce_tests = parse_dataframe(dfs, get_pce_one,
                                     alpha=alpha,
                                     alternative='greater',
                                     ratio=args.ratio,
@@ -823,7 +820,7 @@ def plot_one(args):
         pce_tests = []
 
     if not args.no_mct:
-        mct_tests = parse_dataframe(dfs,  get_mct_one,
+        mct_tests = parse_dataframe(dfs, get_mct_one,
                                     alpha=alpha,
                                     alternative='greater',
                                     ratio=args.ratio,
