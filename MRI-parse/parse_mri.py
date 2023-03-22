@@ -195,14 +195,27 @@ def get_mct_exclude(args, df, alpha,
                     method='fwe_bonferroni',
                     high_confidence=False):
     '''
-    Return tests that passes
+    upper bound  CI for the number of failures     
     '''
     def binom(series_of_struct):
         _values = [
             scipy.stats.binomtest(k=next_struct['fails'],
                                   n=next_struct['trials'],
                                   p=next_struct['alpha'],
-                                  alternative=alternative).pvalue
+                                  alternative='greater').pvalue
+            for next_struct in series_of_struct
+        ]
+        return pd.Series(values=_values)
+
+    def binom_succ(series_of_struct):
+        '''
+        lower bound CI for for the number of successes (should be equivalent to number of failures with p=alpha)
+        '''
+        _values = [
+            scipy.stats.binomtest(k=next_struct['trials']-next_struct['fails'],
+                                  n=next_struct['trials'],
+                                  p=1-next_struct['alpha'],
+                                  alternative='less').pvalue
             for next_struct in series_of_struct
         ]
         return pd.Series(values=_values)
@@ -236,7 +249,8 @@ def get_mct_exclude(args, df, alpha,
     )
 
     df = df.with_columns(
-        (pd.struct(["fails", "trials", "alpha"]).map(binom).alias('pvalue'))
+        (pd.struct(["fails", "trials", "alpha"]).map(
+            binom_succ).alias('pvalue'))
     )
 
     df = df.with_columns(
@@ -501,7 +515,7 @@ def plot_test_template(tests, verbose=False):
                     print('z', z.shape)
                     print(pivot)
 
-                im = px.imshow(z,
+                im = px.imshow(z_transformed,
                                x=[str(int(float(f))) for f in fwhms],
                                y=[str(f) for f in confidences],
                                zmin=zmin, zmax=zmax,
@@ -544,7 +558,7 @@ def plot_test_one(labels, tests, ratio=False, verbose=False, template=False):
         zmin = 0
         zmax = 1
     else:
-        colors = ['#d60000', '#006b0c']
+        colors = ['#ffffff', '#d60000', '#006b0c']
         zmin = 0
         zmax = 1
 
@@ -562,8 +576,6 @@ def plot_test_one(labels, tests, ratio=False, verbose=False, template=False):
         confidences = test['confidence'].unique().sort(
             descending=True).to_numpy()
         fwhms = test['fwhm'].unique().sort().to_numpy()
-        target_templates = test['target_template'].unique().sort(
-            descending=True).to_numpy()
 
         rows = confidences.size
         cols = fwhms.size
@@ -586,23 +598,37 @@ def plot_test_one(labels, tests, ratio=False, verbose=False, template=False):
 
         for (row, confidence), (col, fwhm) in tqdm.tqdm(itertools.product(econfidences, efwhms), total=rows*cols):
 
-            if template:
-                (x, y, z) = get_parameters_heatmap_template(test,
-                                                            confidence,
-                                                            fwhm,
-                                                            target_templates,
-                                                            verbose=args.verbose)
-            else:
-                (x, y, z) = get_parameters_heatmap_subject(test,
-                                                           confidence,
-                                                           fwhm,
-                                                           subjects,
-                                                           verbose=args.verbose)
+            (x, y, z) = get_parameters_heatmap_subject(test,
+                                                       confidence,
+                                                       fwhm,
+                                                       subjects,
+                                                       verbose=args.verbose)
 
-            im = px.imshow(z,
+            '''
+            To make the figure cleaner to read, we show only outcomes that are 
+            different from expected.
+            White: 0, Red: 1, Green: 2
+            Turn fail/pass into color depending on wether it's on the diagonal or not.
+            - diagonal: (expected true)
+                * false -> 1
+                * true -> 0
+            - not diagonal: (expected false)
+                * false -> 0
+                * true -> 1
+            '''
+            diag = np.rot90(np.eye(z.shape[0], dtype=bool))
+            z_transformed = z
+            z_transformed[diag] = np.where(z[diag], 0, .5)
+            z_transformed[~diag] = np.where(z[~diag], .5, 0)
+
+            if verbose:
+                print(z_transformed)
+
+            im = px.imshow(z_transformed,
                            x=[str(i) for i in x],
                            y=[str(i) for i in y],
                            zmin=zmin, zmax=zmax,
+                           aspect='equal',
                            color_continuous_scale=colors,
                            origin='upper')
             test_fig.add_trace(im.data[0], row=row, col=col)
@@ -682,6 +708,7 @@ def plotly_backend_one(args, pces, mcts, show, no_pce, no_mct, ratio=False):
     ext = ('_ratio' if args.ratio else '') + \
         ('_template' if args.template else '')
     dim = dict(width=720 * 3, height=720) if args.template else dict()
+    dim = dict()
     if not no_pce:
         pce_fig.write_image(
             f'{args.test}_pce_{ext}.svg', scale=10, **dim)

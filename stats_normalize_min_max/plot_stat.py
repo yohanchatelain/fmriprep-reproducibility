@@ -96,9 +96,9 @@ fig = make_subplots(rows=3, cols=3,
                     shared_xaxes=True, shared_yaxes=True,
                     vertical_spacing=0.01, horizontal_spacing=0.01,
                     column_titles=['RR', 'RS', 'RR+RS'],
-                    row_titles=['Mean (log)', 'Standard deviation (log)',
+                    row_titles=['Mean', 'Standard deviation',
                                 'Significant bits'],
-                    x_title='FWHM')
+                    x_title='FWHM (mm)')
 
 color = plotly.colors.make_colorscale(['darkblue', 'blue', 'cyan',
                                        'green', 'yellow', 'orange',
@@ -110,7 +110,7 @@ colors = {s: color[i] for i, s in enumerate(subjects.keys())}
 sc = px.scatter(rr[rr.stat == 'mean'], x='fwh', y='mean',
                 color='subject',
                 category_orders=subjects,
-                log_y=True)
+                log_y=False)
 sc.update_layout(showlegend=False)
 sc.update_yaxes(range=[-10, 6000])
 
@@ -119,14 +119,14 @@ fig.add_traces(sc.data, rows=1, cols=1)
 sc = px.scatter(rs[rs.stat == 'mean'], x='fwh', y='mean',
                 color='subject',
                 category_orders=subjects,
-                log_y=True)
+                log_y=False)
 sc.update_yaxes(range=[-10, 6000])
 fig.add_traces(sc.data, rows=1, cols=2)
 
 sc = px.scatter(rr_rs[rr_rs.stat == 'mean'], x='fwh', y='mean',
                 color='subject',
                 category_orders=subjects,
-                log_y=True)
+                log_y=False)
 sc.update_yaxes(range=[-10, 6000])
 fig.add_traces(sc.data, rows=1, cols=3)
 
@@ -134,21 +134,21 @@ fig.add_traces(sc.data, rows=1, cols=3)
 sc = px.scatter(rr[rr.stat == 'std'], x='fwh', y='mean',
                 color='subject',
                 category_orders=subjects,
-                log_y=True)
+                log_y=False)
 sc.update_yaxes(range=[-3, 60])
 fig.add_traces(sc.data, rows=2, cols=1)
 
 sc = px.scatter(rs[rs.stat == 'std'], x='fwh', y='mean',
                 color='subject',
                 category_orders=subjects,
-                log_y=True)
+                log_y=False)
 sc.update_yaxes(range=[-3, 60])
 fig.add_traces(sc.data, rows=2, cols=2)
 
 sc = px.scatter(rr_rs[rr_rs.stat == 'std'], x='fwh', y='mean',
                 color='subject',
                 category_orders=subjects,
-                log_y=True)
+                log_y=False)
 sc.update_yaxes(range=[-3, 60])
 fig.add_traces(sc.data, rows=2, cols=3)
 
@@ -173,19 +173,19 @@ fig.add_traces(sc.data, rows=3, cols=3)
 
 fig.update_traces(marker=dict(size=3), mode='lines+markers')
 
-fig.update_yaxes(type='log', showexponent='all', dtick="D2",
-                 exponentformat='power', row=1, col=1)
-fig.update_yaxes(type='log', showexponent='all', dtick="D2",
-                 exponentformat='power', row=1, col=2)
-fig.update_yaxes(type='log', showexponent='all', dtick="D2",
-                 exponentformat='power', row=1, col=3)
+# fig.update_yaxes(type='log', showexponent='all', dtick="D2",
+#                  exponentformat='power', row=1, col=1)
+# fig.update_yaxes(type='log', showexponent='all', dtick="D2",
+#                  exponentformat='power', row=1, col=2)
+# fig.update_yaxes(type='log', showexponent='all', dtick="D2",
+#                  exponentformat='power', row=1, col=3)
 
-fig.update_yaxes(type='log', showexponent='all', dtick="D2",
-                 exponentformat='power', row=2, col=1)
-fig.update_yaxes(type='log', showexponent='all', dtick="D2",
-                 exponentformat='power', row=2, col=2)
-fig.update_yaxes(type='log', showexponent='all', dtick="D2",
-                 exponentformat='power', row=2, col=3)
+# fig.update_yaxes(type='log', showexponent='all', dtick="D2",
+#                  exponentformat='power', row=2, col=1)
+# fig.update_yaxes(type='log', showexponent='all', dtick="D2",
+#                  exponentformat='power', row=2, col=2)
+# fig.update_yaxes(type='log', showexponent='all', dtick="D2",
+#                  exponentformat='power', row=2, col=3)
 
 print(fig.data[0]['name'])  # sub-1
 print(fig.data[1]['name'])  # 36
