@@ -86,7 +86,7 @@ def compute_sig_stats(args,
                       methods, **info):
 
     sig_error = significantdigits.Error.Relative
-    sig_method = significantdigits.Method.General
+    sig_method = significantdigits.Method.CNH
     confidences = args.confidence
     fwh = args.smooth_kernel
     sample_size = info['sample_size']
@@ -211,7 +211,7 @@ def compute_fvr_per_target(args, references_T1, targets_T1, supermask,
             print("Compare significant digits")
         mean = np.mean(references_T1, axis=0)
         sig_error = significantdigits.Error.Relative
-        sig_method = significantdigits.Method.General
+        sig_method = significantdigits.Method.CNH
         sig = significantdigits.significant_digits(references_T1,
                                                    reference=mean,
                                                    axis=0,
@@ -525,7 +525,7 @@ def compute_stats(args):
                                                base=2,
                                                axis=0,
                                                error=Error.Relative,
-                                               method=Method.General)
+                                               method=Method.CNH)
 
     filename = '_'.join([args.reference_prefix,
                          args.reference_dataset,
