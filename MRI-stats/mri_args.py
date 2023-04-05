@@ -13,7 +13,7 @@ def init_global_args(parser):
                         required=True, help="Reference template")
     parser.add_argument("--data-type", action="store",
                         default='anat', choices=['anat'],
-                        required=True, help="Data type")
+                        help="Data type")
 
     parser.add_argument("--reference-prefix", action='store',
                         required=True, help='Reference prefix path')
