@@ -79,7 +79,7 @@ def show_named_plotly_colours():
     fig.show()
 
 
-show_named_plotly_colours()
+# show_named_plotly_colours()
 
 df = pd.read_csv('stats.csv')
 df = df.drop('Unnamed: 0', axis=1)
@@ -228,7 +228,6 @@ fig.update_layout(font=dict(size=8),
                   margin=dict(l=5, r=7, b=10, t=25))
 
 fig.update_annotations(font=dict(size=10))
-
-print(fig)
+fig.update_layout(font_family='Serif')
 fig.write_image('stats.pdf', scale=10)
 # fig.show()

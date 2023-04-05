@@ -8,12 +8,15 @@ symmetric_rules = ['shift', 'cut']
 
 
 def shift_image(img):
-    return img + abs(img.min())
+    data = img.get_fdata()
+    data += abs(data.min())
+    return nibabel.Nifti1Image(data, img.affine)
 
 
 def cut_image(img):
-    img[img < 0] = 0
-    return img
+    data = img.get_fdata()
+    data[data < 0] = 0
+    return nibabel.Nifti1Image(data, img.affine)
 
 
 def log_image(img):
@@ -26,6 +29,7 @@ def load_img(args):
     if args.mask:
         mask = load_mask(args)
         img = nilearn.masking.apply_mask(img, mask, smoothing_fwhm=args.fwhm)
+        img = nilearn.masking.unmask(img, mask)
 
     if args.force_symmetric == 'shift':
         img = shift_image(img)
@@ -34,9 +38,6 @@ def load_img(args):
 
     if args.log:
         img = log_image(img)
-
-    if args.mask:
-        img = nilearn.masking.unmask(img, mask)
 
     return img
 

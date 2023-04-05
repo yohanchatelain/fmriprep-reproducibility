@@ -195,7 +195,7 @@ def get_mct_exclude(args, df, alpha,
                     method='fwe_bonferroni',
                     high_confidence=False):
     '''
-    upper bound  CI for the number of failures     
+    upper bound  CI for the number of failures
     '''
     def binom(series_of_struct):
         _values = [
@@ -379,6 +379,7 @@ def plot_test_exclude(tests, ratio=False, verbose=False):
         test_fig.update_layout(coloraxis_colorbar_x=1.05)
 
     test_fig['layout']['annotations'][-1]['textangle'] = -90
+    test_fig.update_layout(font_family='Serif')
 
     return test_fig
 
@@ -460,6 +461,9 @@ def plot_test_template(tests, verbose=False):
     zmin = 0
     zmax = 1
 
+    tests_label = ['   RR',
+                   '   RS',
+                   'RR+RS']
     tests = [test.collect() for test in tests]
     nb_tests = len(tests)
     test = tests[0]
@@ -473,8 +477,26 @@ def plot_test_template(tests, verbose=False):
     cols = len(subjects)
 
     column_titles = subjects
-    row_titles = [str(int(t.split('Noised')[-1]) / 10) + '%'
-                  for t in templates] * nb_tests
+
+    row_titles = []
+
+    for label in tests_label[:nb_tests]:
+        for i, t in enumerate(templates, start=1):
+            title = str(int(t.split('Noised')[-1]) / 10) + '%'
+            title = f'{title:>6}'
+            # if i == len(templates) // 2:
+            #     title += ' ' + label
+            #     print(title)
+            row_titles.append(title)
+
+    # row_titles = [str(int(t.split('Noised')[-1]) / 10) + '%'
+    #               for t in templates] * nb_tests
+
+    specs = [[{} for _ in range(cols)] for _ in range(rows * nb_tests)]
+
+    for r in [i * rows - 1 for i in range(1, nb_tests)]:
+        for cell in specs[r]:
+            cell['b'] = 0.003
 
     test_fig = make_subplots(rows=rows * nb_tests, cols=cols,
                              column_titles=column_titles,
@@ -484,7 +506,8 @@ def plot_test_template(tests, verbose=False):
                              x_title='FWHM (mm)',
                              y_title='Confidence level',
                              vertical_spacing=0.00001,
-                             horizontal_spacing=0.001
+                             horizontal_spacing=0.001,
+                             specs=specs
                              )
 
     for i, test in enumerate(tests, start=0):
@@ -515,7 +538,7 @@ def plot_test_template(tests, verbose=False):
                     print('z', z.shape)
                     print(pivot)
 
-                im = px.imshow(z_transformed,
+                im = px.imshow(z,
                                x=[str(int(float(f))) for f in fwhms],
                                y=[str(f) for f in confidences],
                                zmin=zmin, zmax=zmax,
@@ -532,10 +555,10 @@ def plot_test_template(tests, verbose=False):
         test_fig.update_xaxes(tickangle=0)
         test_fig.update_layout(coloraxis=dict(colorscale=colors))
         test_fig.update_coloraxes(cmin=0, cmax=1)
-        test_fig.update_layout(margin=dict(t=25, b=40, l=50, r=60))
+        test_fig.update_layout(margin=dict(t=25, b=30, l=30, r=70))
 
         test_fig.update_annotations(font=dict(size=10))
-        test_fig.layout['annotations'][-1]['xshift'] = -20
+        test_fig.layout['annotations'][-1]['xshift'] = -10
         test_fig.layout['annotations'][-2]['yshift'] = -10
 
         if not args.ratio:
@@ -548,6 +571,36 @@ def plot_test_template(tests, verbose=False):
 
         # tests_fig.append(test_fig)
 
+        # lines = [dict(type='line', xref='paper', yref='paper',
+        #               x0=0.008, y0=0.33, x1=0.98, y1=0.33),
+        #          dict(type='line', xref='paper', yref='paper',
+        #               x0=0.1, y0=0.67, x1=0.9, y1=0.67),
+        #          dict(type='line', xref='paper', yref='paper',
+        #               x0=0.1, y0=0.99, x1=0.9, y1=0.99)
+        #          ]
+        # test_fig.update_layout(width=350, shapes=lines)
+
+        test_fig.for_each_xaxis(lambda x: x.update(tickmode='array',
+                                                   tickvals=[1, 5, 10, 15, 19],
+                                                   ticktext=[
+                                                       '0', '5', '10', '15', '20']))
+        test_fig.for_each_yaxis(lambda y: y.update(tickmode='array',
+                                                   tickvals=[0.99, 0.8, 0.6],
+                                                   ticktext=[
+                                                       '0.995', '0.75', '0.5']
+                                                   ))
+        test_fig.update_layout(font_family='Serif')
+
+        # test_fig.add_annotation(text="RR",
+        #                         xref="paper", yref="paper",
+        #                         x=0.99, y=0.33, showarrow=False)
+        # test_fig.add_annotation(text="RS",
+        #                         xref="paper", yref="paper",
+        #                         x=0.99, y=0.66, showarrow=False)
+        # test_fig.add_annotation(text="RR+RS",
+        #                         xref="paper", yref="paper",
+        #                         x=0.99, y=0.99, showarrow=False)
+
     return test_fig
 
 
@@ -558,7 +611,7 @@ def plot_test_one(labels, tests, ratio=False, verbose=False, template=False):
         zmin = 0
         zmax = 1
     else:
-        colors = ['#ffffff', '#d60000', '#006b0c']
+        colors = ['#d63020', '#007722']
         zmin = 0
         zmax = 1
 
@@ -587,8 +640,8 @@ def plot_test_one(labels, tests, ratio=False, verbose=False, template=False):
                                  shared_yaxes=True,
                                  x_title='FWHM (mm)',
                                  y_title='Confidence level',
-                                 vertical_spacing=0.0005,
-                                 horizontal_spacing=0.0005)
+                                 vertical_spacing=0,
+                                 horizontal_spacing=0)
 
         for a in test_fig['layout']['annotations']:
             a['textangle'] = 0
@@ -605,7 +658,7 @@ def plot_test_one(labels, tests, ratio=False, verbose=False, template=False):
                                                        verbose=args.verbose)
 
             '''
-            To make the figure cleaner to read, we show only outcomes that are 
+            To make the figure cleaner to read, we show only outcomes that are
             different from expected.
             White: 0, Red: 1, Green: 2
             Turn fail/pass into color depending on wether it's on the diagonal or not.
@@ -618,8 +671,8 @@ def plot_test_one(labels, tests, ratio=False, verbose=False, template=False):
             '''
             diag = np.rot90(np.eye(z.shape[0], dtype=bool))
             z_transformed = z
-            z_transformed[diag] = np.where(z[diag], 0, .5)
-            z_transformed[~diag] = np.where(z[~diag], .5, 0)
+            # z_transformed[diag] = np.where(z[diag], 0, .5)
+            # z_transformed[~diag] = np.where(z[~diag], .5, 0)
 
             if verbose:
                 print(z_transformed)
@@ -631,6 +684,15 @@ def plot_test_one(labels, tests, ratio=False, verbose=False, template=False):
                            aspect='equal',
                            color_continuous_scale=colors,
                            origin='upper')
+
+            test_fig.add_shape(type='line',
+                               xref='x', yref='y',
+                               x0=len(x)-1, y0=0,
+                               x1=0, y1=len(y)-1,
+                               opacity=0.25,
+                               line=dict(color='black'),
+                               row=row, col=col)
+
             test_fig.add_trace(im.data[0], row=row, col=col)
             test_fig.update_layout(coloraxis=dict(colorscale=colors))
             test_fig.update_coloraxes(cmin=0, cmax=1)
@@ -655,9 +717,10 @@ def plot_test_one(labels, tests, ratio=False, verbose=False, template=False):
                                yaxis=dict(side='left'),
                                font=dict(size=8),
                                annotations=[dict(font=dict(size=8))])
+        test_fig.update_layout(font_family='Serif')
         pce_figs.append(test_fig)
 
-    return pce_figs
+    return pce_figs[0]
 
 
 def plotly_backend_exclude(args, pces, mcts, show, no_pce, no_mct, ratio=False):
@@ -711,10 +774,10 @@ def plotly_backend_one(args, pces, mcts, show, no_pce, no_mct, ratio=False):
     dim = dict()
     if not no_pce:
         pce_fig.write_image(
-            f'{args.test}_pce_{ext}.svg', scale=10, **dim)
+            f'{args.test}_pce_{ext}.svg', scale=1, **dim)
     if not no_mct:
         mct_fig.write_image(
-            f'{args.test}_mct_{args.mct_method}_{ext}.svg', scale=10, **dim)
+            f'{args.test}_mct_{args.mct_method}_{ext}.svg', scale=1, **dim)
 
 
 def get_optimum(df):
@@ -805,7 +868,7 @@ def plot_exclude(args):
     if not args.no_pce:
         pce_tests = parse_dataframe(dfs, get_pce_exclude,
                                     alpha=alpha,
-                                    alternative='two-sided',
+                                    alternative='greater',
                                     ratio=args.ratio,
                                     high_confidence=args.high_confidence)
         get_optimum_test(references, 'pce', pce_tests, ext)
