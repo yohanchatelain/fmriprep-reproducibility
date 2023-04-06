@@ -14,7 +14,7 @@ import plotly.io as pio
 import scipy.stats
 from plotly.subplots import make_subplots
 
-pio.kaleido.scope.mathjax = None
+# pio.kaleido.scope.mathjax = None
 
 tests_name = {
     'exclude': 'all-exclude',
@@ -504,7 +504,7 @@ def plot_test_template(tests, verbose=False):
                              shared_xaxes=True,
                              shared_yaxes=True,
                              x_title='FWHM (mm)',
-                             y_title='Confidence level',
+                             y_title='Alpha threshold',
                              vertical_spacing=0.00001,
                              horizontal_spacing=0.001,
                              specs=specs
@@ -587,7 +587,7 @@ def plot_test_template(tests, verbose=False):
         test_fig.for_each_yaxis(lambda y: y.update(tickmode='array',
                                                    tickvals=[0.99, 0.8, 0.6],
                                                    ticktext=[
-                                                       '0.995', '0.75', '0.5']
+                                                       '0.005', '0.25', '0.50']
                                                    ))
         test_fig.update_layout(font_family='Serif')
 
@@ -604,7 +604,129 @@ def plot_test_template(tests, verbose=False):
     return test_fig
 
 
-def plot_test_one(labels, tests, ratio=False, verbose=False, template=False):
+def plot_test_versions(tests, verbose=False):
+
+    colors = ['#d60000', '#006b0c']
+    zmin = 0
+    zmax = 1
+
+    tests_label = ['   RR',
+                   '   RS',
+                   'RR+RS']
+    tests = [test.collect() for test in tests]
+    nb_tests = len(tests)
+    test = tests[0]
+
+    subjects = test.select(
+        pd.col('reference_subject')).unique().sort(by=['reference_subject']).to_dict(as_series=False)['reference_subject']
+
+    versions = test['target_version'].unique().sort().to_numpy()
+
+    rows = versions.size
+    cols = len(subjects)
+
+    column_titles = subjects
+
+    row_titles = []
+
+    for label in tests_label[:nb_tests]:
+        for i, t in enumerate(versions, start=1):
+            title = f'{t:>6}'
+            row_titles.append(title)
+
+    specs = [[{} for _ in range(cols)] for _ in range(rows * nb_tests)]
+
+    for r in [i * rows - 1 for i in range(1, nb_tests)]:
+        for cell in specs[r]:
+            cell['b'] = 0.003
+
+    test_fig = make_subplots(rows=rows * nb_tests, cols=cols,
+                             column_titles=column_titles,
+                             row_titles=row_titles,
+                             shared_xaxes=True,
+                             shared_yaxes=True,
+                             x_title='FWHM (mm)',
+                             y_title='Alpha threshold',
+                             vertical_spacing=0.001,
+                             horizontal_spacing=0.001,
+                             specs=specs
+                             )
+
+    for i, test in enumerate(tests, start=0):
+
+        for row, version in enumerate(versions, start=1):
+
+            for col, subject in enumerate(subjects, start=1):
+
+                for a in test_fig['layout']['annotations']:
+                    a['textangle'] = 0
+
+                pce_subject = test.filter((pd.col('reference_subject') == subject) & (pd.col('target_version') == version)).sort(
+                    by=['confidence', 'fwhm'], descending=[False, False])
+
+                pivot = pce_subject.pivot(index=['confidence'], columns=[
+                    'fwhm'], values='success')
+
+                confidences = pivot['confidence'].to_numpy()
+                fwhms = pivot.columns[1:]
+                z = pivot.to_numpy()[..., 1:]
+
+                if verbose:
+                    print(subject)
+                    print('x', confidences.shape)
+                    print(confidences)
+                    print('y', len(fwhms))
+                    print(fwhms)
+                    print('z', z.shape)
+                    print(pivot)
+
+                im = px.imshow(z,
+                               x=[str(int(float(f))) for f in fwhms],
+                               y=[str(f) for f in confidences],
+                               zmin=zmin, zmax=zmax,
+                               color_continuous_scale=colors,
+                               origin='lower')
+
+                test_fig.add_trace(im.data[0], row=row + i * rows, col=col)
+
+        test_fig.for_each_xaxis(
+            lambda xaxis: xaxis.tickfont.update(size=7))
+        test_fig.for_each_yaxis(
+            lambda yaxis: yaxis.tickfont.update(size=3))
+
+        test_fig.update_xaxes(tickangle=0)
+        test_fig.update_layout(coloraxis=dict(colorscale=colors))
+        test_fig.update_coloraxes(cmin=0, cmax=1)
+        test_fig.update_layout(margin=dict(t=25, b=30, l=30, r=70))
+
+        test_fig.update_annotations(font=dict(size=10))
+        test_fig.layout['annotations'][-1]['xshift'] = -10
+        test_fig.layout['annotations'][-2]['yshift'] = -10
+
+        if not args.ratio:
+            test_fig.update_traces(showlegend=False)
+            test_fig.update_coloraxes(showscale=False)
+        else:
+            test_fig.update_layout(coloraxis_colorbar_x=1.05)
+
+        test_fig['layout']['annotations'][-1]['textangle'] = -90
+
+        test_fig.for_each_xaxis(lambda x: x.update(tickmode='array',
+                                                   tickvals=[1, 5, 10, 15, 19],
+                                                   ticktext=[
+                                                       '0', '5', '10', '15', '20']))
+        test_fig.for_each_yaxis(lambda y: y.update(tickmode='array',
+                                                   tickvals=[
+                                                       0.995,  0.95, 0.85,  0.75,  0.65, 0.55],
+                                                   ticktext=[
+                                                       '0.005',  '0.05',  '0.15',  '0.25',  '0.35',   '0.45']
+                                                   ))
+        test_fig.update_layout(font_family='Serif')
+
+    return test_fig
+
+
+def plot_test_one(labels, tests, ratio=False, verbose=False):
 
     if ratio:
         colors = 'RdYlGn_r'
@@ -639,7 +761,7 @@ def plot_test_one(labels, tests, ratio=False, verbose=False, template=False):
                                  shared_xaxes=True,
                                  shared_yaxes=True,
                                  x_title='FWHM (mm)',
-                                 y_title='Confidence level',
+                                 y_title='Alpha threhold',
                                  vertical_spacing=0,
                                  horizontal_spacing=0)
 
@@ -657,22 +779,8 @@ def plot_test_one(labels, tests, ratio=False, verbose=False, template=False):
                                                        subjects,
                                                        verbose=args.verbose)
 
-            '''
-            To make the figure cleaner to read, we show only outcomes that are
-            different from expected.
-            White: 0, Red: 1, Green: 2
-            Turn fail/pass into color depending on wether it's on the diagonal or not.
-            - diagonal: (expected true)
-                * false -> 1
-                * true -> 0
-            - not diagonal: (expected false)
-                * false -> 0
-                * true -> 1
-            '''
             diag = np.rot90(np.eye(z.shape[0], dtype=bool))
             z_transformed = z
-            # z_transformed[diag] = np.where(z[diag], 0, .5)
-            # z_transformed[~diag] = np.where(z[~diag], .5, 0)
 
             if verbose:
                 print(z_transformed)
@@ -738,11 +846,11 @@ def plotly_backend_exclude(args, pces, mcts, show, no_pce, no_mct, ratio=False):
     ext = '_ratio' if args.ratio else ''
 
     if not no_pce:
-        pce_fig.write_image(f'{args.test}_pce{ext}.pdf',
-                            scale=5, width=720, height=1024)
+        # ,scale=1, width=720, height=1024)
+        pce_fig.write_image(f'{args.test}_pce{ext}.pdf')
     if not no_mct:
-        mct_fig.write_image(f'{args.test}_mct{ext}_{args.mct_method}.pdf', scale=5,
-                            width=720, height=1024)
+        # , scale=1,width=720, height=1024)
+        mct_fig.write_image(f'{args.test}_mct{ext}_{args.mct_method}.pdf')
 
 
 def plotly_backend_one(args, pces, mcts, show, no_pce, no_mct, ratio=False):
@@ -751,16 +859,20 @@ def plotly_backend_one(args, pces, mcts, show, no_pce, no_mct, ratio=False):
         print('PCE')
         if args.template:
             pce_fig = plot_test_template(pces, args.verbose)
+        elif args.versions:
+            pce_fig = plot_test_versions(pces, args.verbose)
         else:
             pce_fig = plot_test_one(labels, pces, ratio,
-                                    args.verbose, args.template)
+                                    args.verbose)
     if not no_mct:
         print(f'MCT {args.mct_method}')
         if args.template:
             mct_fig = plot_test_template(mcts, args.verbose)
+        elif args.versions:
+            mct_fig = plot_test_versions(mcts, args.verbose)
         else:
             mct_fig = plot_test_one(labels, mcts, ratio,
-                                    args.verbose, args.template)
+                                    args.verbose)
 
     if show:
         if not no_pce:
@@ -773,11 +885,15 @@ def plotly_backend_one(args, pces, mcts, show, no_pce, no_mct, ratio=False):
     dim = dict(width=720 * 3, height=720) if args.template else dict()
     dim = dict()
     if not no_pce:
+        # pce_fig.write_image(
+        #     f'{args.test}_pce_{ext}.svg', scale=1, **dim)
         pce_fig.write_image(
-            f'{args.test}_pce_{ext}.svg', scale=1, **dim)
+            f'{args.test}_pce_{ext}.pdf', scale=1, **dim)
     if not no_mct:
+        # mct_fig.write_image(
+        #     f'{args.test}_mct_{args.mct_method}_{ext}.svg', scale=1, **dim)
         mct_fig.write_image(
-            f'{args.test}_mct_{args.mct_method}_{ext}.svg', scale=1, **dim)
+            f'{args.test}_mct_{args.mct_method}_{ext}.pdf', scale=1, **dim)
 
 
 def get_optimum(df):
@@ -818,6 +934,14 @@ def get_optimum_test(references, test_name, tests, ext):
             f'{args.test}_{name}_{test_name}{ext}.csv')
 
 
+def get_version(path):
+    '''
+    retrieve fmriprep version in the path name
+    TODO: add fmriprep version in the dict 
+    '''
+    return path.split('target')[1].split('_')[1].split('-')[1]
+
+
 def get_reference(reference):
     paths = glob.glob(f'{reference}/*.pkl')
     ldf = []
@@ -825,6 +949,9 @@ def get_reference(reference):
         with open(path, 'rb') as fib:
             pkl = pickle.load(fib)
             df = pd.DataFrame(pkl).lazy()
+            version = get_version(path)
+            df = df.with_columns(
+                pd.Series(name='target_version', values=[version]))
             ldf.append(df)
     return pd.concat(ldf)
 
@@ -845,10 +972,10 @@ def memoize(arg, fun):
 def get_references(references):
     dfs = []
     for reference in references:
-        # ldf = memoize(reference, get_reference)
         ldf = get_reference(reference)
         ldf = ldf.with_columns(
-            (pd.Series(name='prefix', values=[reference]))
+            (pd.Series(name='prefix', values=[reference])
+             )
         )
         dfs.append(ldf)
     return dfs
@@ -981,7 +1108,6 @@ def plot_deviation_exclude(args):
 
 def parse_args():
     parser = argparse.ArgumentParser('')
-    parser.add_argument('--directory', default='mri_pickle')
     parser.add_argument('--reference', required=True, nargs='+')
     parser.add_argument('--test', choices=tests_name.keys(), required=True)
     parser.add_argument('--show', action='store_true')
@@ -1004,6 +1130,8 @@ def parse_args():
     parser.add_argument('--verbose', action='store_true', help='verbose mode')
     parser.add_argument('--template', action='store_true',
                         help='compare agains template')
+    parser.add_argument('--versions', action='store_true',
+                        help='compare against versions')
     parser.add_argument('--ieee', action='store_true')
     return parser.parse_args()
 
