@@ -339,23 +339,6 @@ def plot_test_exclude(tests, ratio=False, verbose=False):
     cols = len(tests)
     rows = len(subjects)
 
-    x = (
-        tests[0]
-        .collect()
-        .with_columns(
-            ((pd.struct(["reference_dataset", "reference_subject"]))).alias("ds")
-        )
-    )["ds"]
-
-    ds = {}
-    for i in x.to_list():
-        d = i["reference_dataset"]
-        s = i["reference_subject"]
-        ds[d] = ds.get(d, {}) | {s: ""}
-
-
-
-
     test_fig = make_subplots(
         rows=rows,
         cols=cols,
@@ -525,13 +508,7 @@ def plot_test_template(tests, verbose=False):
         for i, t in enumerate(templates, start=1):
             title = str(int(t.split("Noised")[-1]) / 10) + "%"
             title = f"{title:>6}"
-            # if i == len(templates) // 2:
-            #     title += ' ' + label
-            #     print(title)
             row_titles.append(title)
-
-    # row_titles = [str(int(t.split('Noised')[-1]) / 10) + '%'
-    #               for t in templates] * nb_tests
 
     specs = [[{} for _ in range(cols)] for _ in range(rows * nb_tests)]
 
@@ -613,17 +590,6 @@ def plot_test_template(tests, verbose=False):
 
         test_fig["layout"]["annotations"][-1]["textangle"] = -90
 
-        # tests_fig.append(test_fig)
-
-        # lines = [dict(type='line', xref='paper', yref='paper',
-        #               x0=0.008, y0=0.33, x1=0.98, y1=0.33),
-        #          dict(type='line', xref='paper', yref='paper',
-        #               x0=0.1, y0=0.67, x1=0.9, y1=0.67),
-        #          dict(type='line', xref='paper', yref='paper',
-        #               x0=0.1, y0=0.99, x1=0.9, y1=0.99)
-        #          ]
-        # test_fig.update_layout(width=350, shapes=lines)
-
         test_fig.for_each_xaxis(
             lambda x: x.update(
                 tickmode="array",
@@ -639,16 +605,6 @@ def plot_test_template(tests, verbose=False):
             )
         )
         test_fig.update_layout(font_family="Serif")
-
-        # test_fig.add_annotation(text="RR",
-        #                         xref="paper", yref="paper",
-        #                         x=0.99, y=0.33, showarrow=False)
-        # test_fig.add_annotation(text="RS",
-        #                         xref="paper", yref="paper",
-        #                         x=0.99, y=0.66, showarrow=False)
-        # test_fig.add_annotation(text="RR+RS",
-        #                         xref="paper", yref="paper",
-        #                         x=0.99, y=0.99, showarrow=False)
 
     return test_fig
 
@@ -793,50 +749,64 @@ def plot_test_one(labels, tests, ratio=False, verbose=False):
         zmin = 0
         zmax = 1
 
+    tests_label = ["   RR", "   RS", "RR+RS"]
+    tests = [test.collect() for test in tests]
+    nb_tests = len(tests)
+    test = tests[0]
+
     subjects = (
-        tests[0]
-        .collect()
-        .select(pd.col("reference_subject"))
+        test.select(pd.col("reference_subject"))
         .unique()
         .sort(by=["reference_subject"])
         .to_dict(as_series=False)["reference_subject"]
     )
+    confidences = test["confidence"].unique().sort(descending=True).to_numpy()
 
-    pce_figs = []
+    fwhms = test["fwhm"].unique().sort().to_numpy()
 
+    if args.no_x_title:
+        column_titles = ["" for f in fwhms]
+        xtitle = ""
+    else:
+        column_titles = [str(int(f)) for f in fwhms]
+        xtitle = "FWHM (mm)"
+
+    row_titles = [f"{1-c:.3f}" for c in confidences]
+
+    figs = []
+
+    i = 0
     for label, test in zip(labels, tests):
+        i += 1
         print(label)
-
-        test = test.collect()
-
-        confidences = test["confidence"].unique().sort(descending=True).to_numpy()
-        fwhms = test["fwhm"].unique().sort().to_numpy()
 
         rows = confidences.size
         cols = fwhms.size
+        print(rows, cols)
 
-        test_fig = make_subplots(
+        pce_fig = make_subplots(
             rows=rows,
             cols=cols,
-            column_titles=[str(int(f)) for f in fwhms],
-            row_titles=[str(c) for c in confidences],
+            column_titles=column_titles,
+            row_titles=row_titles,
             shared_xaxes=True,
             shared_yaxes=True,
-            x_title="FWHM (mm)",
+            x_title=xtitle,
             y_title="Alpha threhold",
             vertical_spacing=0,
             horizontal_spacing=0,
         )
 
-        for a in test_fig["layout"]["annotations"]:
+        for a in pce_fig["layout"]["annotations"]:
             a["textangle"] = 0
 
         econfidences = enumerate(confidences, start=1)
         efwhms = enumerate(fwhms, start=1)
 
-        for (row, confidence), (col, fwhm) in tqdm.tqdm(
+        _iterator = tqdm.tqdm(
             itertools.product(econfidences, efwhms), total=rows * cols
-        ):
+        )
+        for (row, confidence), (col, fwhm) in _iterator:
             (x, y, z) = get_parameters_heatmap_subject(
                 test, confidence, fwhm, subjects, verbose=args.verbose
             )
@@ -858,7 +828,7 @@ def plot_test_one(labels, tests, ratio=False, verbose=False):
                 origin="upper",
             )
 
-            test_fig.add_shape(
+            pce_fig.add_shape(
                 type="line",
                 xref="x",
                 yref="y",
@@ -872,36 +842,44 @@ def plot_test_one(labels, tests, ratio=False, verbose=False):
                 col=col,
             )
 
-            test_fig.add_trace(im.data[0], row=row, col=col)
-            test_fig.update_layout(coloraxis=dict(colorscale=colors))
-            test_fig.update_coloraxes(cmin=0, cmax=1)
-            test_fig.update_layout(margin=dict(t=25, b=25, r=10, l=20))
-            test_fig.layout["annotations"][-1]["xshift"] = -5
-            test_fig.layout["annotations"][-2]["yshift"] = -5
+            pce_fig.add_trace(im.data[0], row=row, col=col)
+
+            if args.no_x_title:
+                bottom, top = 5, 5
+            else:
+                bottom, top = 35, 5
+
+            pce_fig.update_layout(coloraxis=dict(colorscale=colors))
+            pce_fig.update_coloraxes(cmin=0, cmax=1)
+            pce_fig.update_layout(margin=dict(t=top, b=bottom, r=23, l=25))
+            pce_fig.layout["annotations"][-1]["xshift"] = -5
+            pce_fig.layout["annotations"][-2]["yshift"] = -12
 
             if not args.ratio:
-                test_fig.update_traces(showlegend=False)
-                test_fig.update_coloraxes(showscale=False)
+                pce_fig.update_traces(showlegend=False)
+                pce_fig.update_coloraxes(showscale=False)
             else:
-                test_fig.update_layout(coloraxis_colorbar_x=1.05)
+                pce_fig.update_layout(coloraxis_colorbar_x=1.05)
 
-            test_fig["layout"]["annotations"][-1]["textangle"] = -90
+            pce_fig["layout"]["annotations"][-1]["textangle"] = -90
 
-        test_fig.update_xaxes(showticklabels=False)
-        test_fig.update_yaxes(showticklabels=False)
-        test_fig.update_layout_images(
-            xaxis_showticklabels=False, yaxis_showticklabels=False, font=dict(size=8)
+        pce_fig.update_xaxes(showticklabels=False)
+        pce_fig.update_yaxes(showticklabels=False)
+        pce_fig.update_layout_images(
+            xaxis_showticklabels=False, yaxis_showticklabels=False, font=dict(size=12)
         )
-        test_fig.update_layout(
-            xaxis=dict(side="bottom"),
-            yaxis=dict(side="left"),
-            font=dict(size=8),
-            annotations=[dict(font=dict(size=8))],
+        pce_fig.update_layout(
+            font=dict(size=12), annotations=[dict(font=dict(size=12))]
         )
-        test_fig.update_layout(font_family="Serif")
-        pce_figs.append(test_fig)
+        pce_fig.update_layout(font_family="Serif")
 
-    return pce_figs[0]
+        for a in pce_fig["layout"]["annotations"]:
+            if a["text"] in column_titles:
+                a["y"] = -0.033
+
+        # print(pce_fig)
+
+    return pce_fig
 
 
 def plotly_backend_exclude(args, pces, mcts, show, no_pce, no_mct, ratio=False):
@@ -919,10 +897,8 @@ def plotly_backend_exclude(args, pces, mcts, show, no_pce, no_mct, ratio=False):
     ext = "_ratio" if args.ratio else ""
 
     if not no_pce:
-        # ,scale=1, width=720, height=1024)
         pce_fig.write_image(f"{args.test}_pce{ext}.pdf")
     if not no_mct:
-        # , scale=1,width=720, height=1024)
         mct_fig.write_image(f"{args.test}_mct{ext}_{args.mct_method}.pdf")
 
 
@@ -955,12 +931,8 @@ def plotly_backend_one(args, pces, mcts, show, no_pce, no_mct, ratio=False):
     dim = dict(width=720 * 3, height=720) if args.template else dict()
     dim = dict()
     if not no_pce:
-        # pce_fig.write_image(
-        #     f'{args.test}_pce_{ext}.svg', scale=1, **dim)
         pce_fig.write_image(f"{args.test}_pce_{ext}.pdf", scale=1, **dim)
     if not no_mct:
-        # mct_fig.write_image(
-        #     f'{args.test}_mct_{args.mct_method}_{ext}.svg', scale=1, **dim)
         mct_fig.write_image(
             f"{args.test}_mct_{args.mct_method}_{ext}.pdf", scale=1, **dim
         )
@@ -1210,13 +1182,16 @@ def parse_args():
     )
     parser.add_argument("--title", default="")
     parser.add_argument("--no-pce", action="store_true", help="Do not show PCE")
+    parser.add_argument(
+        "--no-x-title", action="store_true", default=False, help="x title"
+    )
     parser.add_argument("--no-mct", action="store_true", help="Do not show MCT")
     parser.add_argument("--show-nan", action="store_true", help="Show NaN")
     parser.add_argument("--ratio", action="store_true", help="Print ratio")
     parser.add_argument(
         "--deviation", action="store_true", help="Compute deviation statistics"
     )
-    parser.add_argument("--mct-method", required=True)
+    parser.add_argument("--mct-method", default="fwe_bonferroni")
     parser.add_argument(
         "--high-confidence",
         action="store_true",

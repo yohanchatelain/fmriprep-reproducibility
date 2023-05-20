@@ -20,8 +20,9 @@ def cut_image(img):
 
 
 def log_image(img):
-    img = np.log(img)
-    return img
+    data = img.get_fdata()
+    log_data = np.log(data)
+    return nibabel.Nifti1Image(log_data, img.affine)
 
 
 def load_img(args):
@@ -31,13 +32,13 @@ def load_img(args):
         img = nilearn.masking.apply_mask(img, mask, smoothing_fwhm=args.fwhm)
         img = nilearn.masking.unmask(img, mask)
 
+    if args.log:
+        img = log_image(img)
+
     if args.force_symmetric == 'shift':
         img = shift_image(img)
     elif args.force_symmetric == 'cut':
         img = cut_image(img)
-
-    if args.log:
-        img = log_image(img)
 
     return img
 
