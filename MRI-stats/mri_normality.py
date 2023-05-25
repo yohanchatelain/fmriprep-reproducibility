@@ -13,17 +13,17 @@ def get_normality_mask(normality_mask_dir):
         return None
 
     image = nibabel.load(normality_mask_dir)
-    return image.get_fdata().astype('bool')
+    return image.get_fdata().astype("bool")
 
 
-def test_normality(t1s, masks, mask_combination, fwh, alpha):
-    '''
+def test_normality(args, t1s, masks, alpha):
+    """
     Compute a voxel-wise normality test for all images
     Returns a binary Nifti image with voxels rejecting the normality test set to True
-    '''
+    """
 
-    t1_masked, supermask = mri_image.mask_t1(t1s, masks, mask_combination, fwh)
-    (n_samples, t1_shape) = t1_masked.shape
+    t1_masked, supermask = mri_image.mask_t1(args, t1s, masks)
+    (_, t1_shape) = t1_masked.shape
 
     nb_voxels = np.count_nonzero(supermask.get_fdata())
 
@@ -34,9 +34,10 @@ def test_normality(t1s, masks, mask_combination, fwh, alpha):
     # Normality is rejected if p-value < 0.05.
     # It gives a 3D array of boolean with True if the voxels rejects the
     # normality test
-    shapiro_test = (scipy.stats.shapiro(
-        t1_masked[..., index])[1] < alpha
-        for index in tqdm.tqdm(range(t1_shape)))
+    shapiro_test = (
+        scipy.stats.shapiro(t1_masked[..., index])[1] < alpha
+        for index in tqdm.tqdm(range(t1_shape))
+    )
     non_normal_voxels = np.fromiter(shapiro_test, bool)
     # # We count the number of non-normal voxels
     nb_non_normal = non_normal_voxels.sum()
@@ -45,56 +46,71 @@ def test_normality(t1s, masks, mask_combination, fwh, alpha):
 
     ratio = nb_non_normal / nb_voxels
 
-    print(f'Card(Voxels not normal) = {nb_non_normal}')
-    print(f'Card(Voxels)            = {nb_voxels}')
-    print(f'non-normal voxel ratio   = {ratio:.2e} [{ratio*100:f}%]')
+    print(f"Card(Voxels not normal) = {nb_non_normal}")
+    print(f"Card(Voxels)            = {nb_voxels}")
+    print(f"non-normal voxel ratio   = {ratio:.2e} [{ratio*100:f}%]")
 
     return normality_image
 
 
 def run_test_normality(args):
-    '''
+    """
     Run the non-normality test for the given inputs
     Save the non-normality brain Nifti image computed and
     returns the filename
-    '''
+    """
 
     template = args.reference_template
     dataset = args.reference_dataset
     subject = args.reference_subject
     mask_combination = args.mask_combination
     fwh = args.smooth_kernel
-    alpha = 1 - args.confidence
 
-    t1s, masks = mri_image.get_reference(
-        prefix=args.reference_prefix,
-        subject=args.reference_subject,
-        dataset=args.reference_dataset,
-        template=args.reference_template,
-        data_type=args.data_type)
+    filenames = []
 
-    mri_printer.print_sep1('Normality test')
-    non_normal_image = test_normality(t1s,
-                                      masks,
-                                      mask_combination,
-                                      fwh,
-                                      alpha)
+    for confidence in args.confidence:
+        alpha = 1 - confidence
 
-    filename = f'non-normal-{dataset}-{subject}-{template}-{mask_combination}-{int(fwh)}-{alpha:.3f}.nii.gz'
-    nibabel.save(non_normal_image, filename)
+        t1s, masks = mri_image.get_reference(
+            prefix=args.reference_prefix,
+            subject=args.reference_subject,
+            dataset=args.reference_dataset,
+            template=args.reference_template,
+            data_type=args.data_type,
+        )
 
-    return non_normal_image.get_filename()
+        mri_printer.print_sep1("Normality test")
+        non_normal_image = test_normality(args, t1s, masks, alpha)
+
+        fields = [
+            "non-normal",
+            dataset,
+            subject,
+            template,
+            mask_combination,
+            str(int(fwh)),
+            f"{alpha:.3f}",
+        ]
+
+        filename = "-".join(fields) + ".nii.gz"
+        nibabel.save(non_normal_image, filename)
+
+        filenames.append(non_normal_image.get_filename())
+
+    return filenames
 
 
 def plot_normality_image(filename, template):
     template_img = mri_image.get_template(template)
     image = nibabel.load(filename)
-    view = nilearn.plotting.view_img(image,
-                                     cmap='Reds',
-                                     cut_coords=(0, 0, 0),
-                                     symmetric_cmap=False,
-                                     opacity=0.5,
-                                     black_bg=True,
-                                     bg_img=template_img,
-                                     title=f'Non-normal voxel {template}')
+    view = nilearn.plotting.view_img(
+        image,
+        cmap="Reds",
+        cut_coords=(0, 0, 0),
+        symmetric_cmap=False,
+        opacity=0.5,
+        black_bg=True,
+        bg_img=template_img,
+        title=f"Non-normal voxel {template}",
+    )
     return view

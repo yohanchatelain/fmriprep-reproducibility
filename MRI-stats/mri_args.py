@@ -53,6 +53,7 @@ def init_global_args(parser):
         help='Gaussian normal distribution type')
     parser.add_argument('--parallel-fitting',
                         action='store_true', help='Parallel fitting')
+    parser.add_argument('--cpus', default=1, type=int, help='Number of CPUs for multiprocessing')
 
 
 def init_module_all_include(parser):

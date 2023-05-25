@@ -16,8 +16,9 @@ from plotly.subplots import make_subplots
 
 import dataset_mapping as dsmap
 
+colorblind_palette = ["#D55E00", "#009E73"]
 
-# pio.kaleido.scope.mathjax = None
+pio.kaleido.scope.mathjax = None
 
 tests_name = {
     "exclude": "all-exclude",
@@ -325,29 +326,34 @@ def plot_test_exclude(tests, ratio=False, verbose=False):
     else:
         colors = ["#E6020D", "#007A0E"]
         colors = ["#d60000", "#006b0c"]
+        # color blind palette
+        colors = colorblind_palette
         zmin = 0
         zmax = 1
 
     subjects = (
         tests[0]
         .collect()
+        .sort(by=["reference_dataset", "reference_subject"])
         .select(pd.col("reference_subject"))
         .unique()
-        .sort(by=["reference_subject"])
         .to_dict(as_series=False)["reference_subject"]
     )
     cols = len(tests)
     rows = len(subjects)
 
+    print(subjects)
+    print(list(range(1, len(subjects) + 1)))
+
     test_fig = make_subplots(
         rows=rows,
         cols=cols,
         column_titles=["RR", "RS", "RR+RS"],
-        row_titles=subjects,
+        row_titles=list(range(1, len(subjects) + 1)),
         shared_xaxes=True,
         shared_yaxes=True,
         x_title="FWHM (mm)",
-        y_title="Confidence level",
+        y_title=r"Alpha threshold",
         vertical_spacing=0.005,
         horizontal_spacing=0.005,
     )
@@ -388,7 +394,7 @@ def plot_test_exclude(tests, ratio=False, verbose=False):
             im = px.imshow(
                 z,
                 x=[str(int(float(f))) for f in fwhms],
-                y=[str(f) for f in confidences],
+                y=[f"{1-f:.3f}" for f in confidences],
                 zmin=zmin,
                 zmax=zmax,
                 color_continuous_scale=colors,
@@ -480,6 +486,7 @@ def get_parameters_heatmap_template(test, confidence, fwhm, templates, verbose):
 
 def plot_test_template(tests, verbose=False):
     colors = ["#d60000", "#006b0c"]
+    colors = colorblind_palette
     zmin = 0
     zmax = 1
 
@@ -611,6 +618,7 @@ def plot_test_template(tests, verbose=False):
 
 def plot_test_versions(tests, verbose=False):
     colors = ["#d60000", "#006b0c"]
+    colors = colorblind_palette
     zmin = 0
     zmax = 1
 
@@ -739,13 +747,15 @@ def plot_test_versions(tests, verbose=False):
     return test_fig
 
 
-def plot_test_one(labels, tests, ratio=False, verbose=False):
+def plot_test_one(args, labels, tests, ratio=False):
+    verbose = args.verbose
     if ratio:
         colors = "RdYlGn_r"
         zmin = 0
         zmax = 1
     else:
         colors = ["#d63020", "#007722"]
+        colors = colorblind_palette
         zmin = 0
         zmax = 1
 
@@ -777,6 +787,9 @@ def plot_test_one(labels, tests, ratio=False, verbose=False):
 
     i = 0
     for label, test in zip(labels, tests):
+        count = 0
+        total = 0
+
         i += 1
         print(label)
 
@@ -796,6 +809,7 @@ def plot_test_one(labels, tests, ratio=False, verbose=False):
             vertical_spacing=0,
             horizontal_spacing=0,
         )
+        pce_fig.update_layout(title_text=args.title)
 
         for a in pce_fig["layout"]["annotations"]:
             a["textangle"] = 0
@@ -813,6 +827,9 @@ def plot_test_one(labels, tests, ratio=False, verbose=False):
 
             diag = np.rot90(np.eye(z.shape[0], dtype=bool))
             z_transformed = z
+
+            count += np.sum(diag != z_transformed.astype("bool"))
+            total += diag.size
 
             if verbose:
                 print(z_transformed)
@@ -863,6 +880,8 @@ def plot_test_one(labels, tests, ratio=False, verbose=False):
 
             pce_fig["layout"]["annotations"][-1]["textangle"] = -90
 
+        print(f"{label} {count}/{total} {count/total:.2f}")
+
         pce_fig.update_xaxes(showticklabels=False)
         pce_fig.update_yaxes(showticklabels=False)
         pce_fig.update_layout_images(
@@ -911,7 +930,7 @@ def plotly_backend_one(args, pces, mcts, show, no_pce, no_mct, ratio=False):
         elif args.versions:
             pce_fig = plot_test_versions(pces, args.verbose)
         else:
-            pce_fig = plot_test_one(labels, pces, ratio, args.verbose)
+            pce_fig = plot_test_one(args, labels, pces, ratio)
     if not no_mct:
         print(f"MCT {args.mct_method}")
         if args.template:
@@ -919,7 +938,7 @@ def plotly_backend_one(args, pces, mcts, show, no_pce, no_mct, ratio=False):
         elif args.versions:
             mct_fig = plot_test_versions(mcts, args.verbose)
         else:
-            mct_fig = plot_test_one(labels, mcts, ratio, args.verbose)
+            mct_fig = plot_test_one(args, labels, mcts)
 
     if show:
         if not no_pce:
@@ -948,12 +967,12 @@ def get_optimum(df):
         [pd.col("success").sum().alias("successes")]
     )
     succ = succ.with_columns((1 - pd.col("confidence")).alias("alpha"))
-    max = succ.select(pd.col("successes").max())
+    _max = succ.select(pd.col("successes").max())
 
     for confidence in confidences:
         dfc = succ.filter(pd.col("confidence") == confidence)
         argmax_df = (
-            dfc.filter(pd.col("successes") == max)
+            dfc.filter(pd.col("successes") == _max)
             .sort(by=["confidence", "fwhm"])
             .select([pd.col("alpha"), pd.col("fwhm")])
         )
@@ -1000,7 +1019,7 @@ def get_reference(reference):
 
 
 def memoize(arg, fun):
-    _raw_hash = hashlib.md5(arg.encode("utf-8")).hexdigest()
+    _raw_hash = hashlib.md5(arg.encode("utf-8"), usedforsecurity=False).hexdigest()
     _mem_file = f"{_raw_hash}.pkl"
     if os.path.exists(_mem_file):
         with open(_mem_file, "rb") as fi:

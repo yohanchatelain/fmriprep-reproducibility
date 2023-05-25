@@ -36,14 +36,14 @@ def get_index(_dict, dataset, subject):
 
 def parse_json(args):
     filename = args.input
-    with open(filename, "r") as fi:
+    with open(filename, "r", encoding="utf-8") as fi:
         dataset_dict = json.load(fi)
         return index(dataset_dict)
 
 
 def dump(args, _map):
     if args.output:
-        with open(args.output, "w") as fo:
+        with open(args.output, "w", encoding="utf-8") as fo:
             json.dump(_map, fo)
     else:
         print(json.dumps(_map, indent=4))
