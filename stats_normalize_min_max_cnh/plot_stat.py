@@ -144,8 +144,9 @@ def create_figure(args):
         vertical_spacing=args.vertical_spacing,
         horizontal_spacing=args.horizontal_spacing,
         column_titles=args.column_titles,
-        row_titles=get_row_titles(args),
+        # row_titles=get_row_titles(args),
         x_title="FWHM (mm)",
+        y_title="Significant bits",
     )
 
     return fig
@@ -226,15 +227,19 @@ def plot(args):
     fig.update_layout(
         font=dict(size=args.font_size - 2),
         legend=dict(
+            title="Subjects",
             orientation="h",
             yanchor="bottom",
             xanchor="center",
             x=0.5,
-            y=-0.2,
+            y=-0.3,
             bgcolor="rgba(0,0,0,0)",
         ),
-        margin=dict(l=10, r=10, b=30, t=20),
+        margin=dict(l=50, r=10, b=30, t=30),
     )
+
+    fig["layout"]["annotations"][-1]["xshift"] += 20
+    fig["layout"]["annotations"][-2]["yshift"] -= 5
 
     fig.update_annotations(font=dict(size=args.font_size))
     fig.update_layout(font_family="Serif")
