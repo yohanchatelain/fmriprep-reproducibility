@@ -166,8 +166,8 @@ def get_brainmask_re(
 
 
 def get_paths(prefix, dataset, subject, data_type):
-    regexp = os.path.join(prefix, f"*{dataset}*", "fmriprep", subject, data_type)
-    paths = glob.glob(regexp)
+    regexp = os.path.join(prefix, f"*{dataset}*", "**", subject, data_type)
+    paths = glob.glob(regexp, recursive=True)
     return paths
 
 
@@ -238,13 +238,6 @@ def mask_t1(args, t1s, masks):
                 pbar.update()
                 results.append(image)
 
-        # masked_t1s = p.imap(get_masked_t1_curr, list(map_args))
-        # progress_bar = tqdm.tqdm(
-        #     desc="Masking reference",
-        #     iterable=masked_t1s,
-        #     unit="image",
-        #     total=len(t1s),
-        # )
     return np.stack(results), supermask
 
 

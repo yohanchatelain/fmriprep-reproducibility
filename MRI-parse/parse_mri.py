@@ -5,6 +5,7 @@ import argparse
 import glob
 import os
 import pickle
+from turtle import title
 import tqdm
 
 import numpy as np
@@ -13,6 +14,7 @@ import plotly.express as px
 import plotly.io as pio
 import scipy.stats
 from plotly.subplots import make_subplots
+import plotly.graph_objects as go
 
 import dataset_mapping as dsmap
 
@@ -318,7 +320,32 @@ def get_mct_one(
     return df
 
 
-def plot_test_exclude(tests, ratio=False, verbose=False):
+def subject_to_index(df):
+    """
+    Extract subjects list and order them
+    returns a list with subjects sorted and
+    their associated index
+    """
+    try:
+        df = df.collect()
+    except AttributeError:
+        pass
+
+    subjects = (
+        df.sort(by=["reference_dataset", "reference_subject"])
+        .select(pd.col("reference_subject"))
+        .unique()
+        .to_dict(as_series=False)["reference_subject"]
+    )
+    i, s = zip(*enumerate(subjects, start=1))
+
+    print(f"Subjects: {s}")
+    print(f"Index: {i}")
+
+    return i, s
+
+
+def plot_test_exclude(args, tests, ratio=False, verbose=False):
     if ratio:
         colors = "RdYlGn_r"
         zmin = 0
@@ -331,25 +358,15 @@ def plot_test_exclude(tests, ratio=False, verbose=False):
         zmin = 0
         zmax = 1
 
-    subjects = (
-        tests[0]
-        .collect()
-        .sort(by=["reference_dataset", "reference_subject"])
-        .select(pd.col("reference_subject"))
-        .unique()
-        .to_dict(as_series=False)["reference_subject"]
-    )
-    cols = len(tests)
-    rows = len(subjects)
-
-    print(subjects)
-    print(list(range(1, len(subjects) + 1)))
+    indexes, subjects = subject_to_index(tests[0])
+    cols = len(subjects)
+    rows = len(tests)
 
     test_fig = make_subplots(
         rows=rows,
         cols=cols,
-        column_titles=["RR", "RS", "RR+RS"],
-        row_titles=list(range(1, len(subjects) + 1)),
+        column_titles=indexes,
+        row_titles=["RR", "RS", "RR+RS"],
         shared_xaxes=True,
         shared_yaxes=True,
         x_title="FWHM (mm)",
@@ -358,8 +375,8 @@ def plot_test_exclude(tests, ratio=False, verbose=False):
         horizontal_spacing=0.005,
     )
 
-    for col, test in enumerate(tests, start=1):
-        for row, subject in enumerate(subjects, start=1):
+    for col, subject in enumerate(subjects, start=1):
+        for row, test in enumerate(tests, start=1):
             for a in test_fig["layout"]["annotations"]:
                 a["textangle"] = 0
 
@@ -403,17 +420,17 @@ def plot_test_exclude(tests, ratio=False, verbose=False):
 
             test_fig.add_trace(im.data[0], row=row, col=col)
 
-    test_fig.for_each_xaxis(lambda xaxis: xaxis.tickfont.update(size=7))
-    test_fig.for_each_yaxis(lambda yaxis: yaxis.tickfont.update(size=7))
+    test_fig.for_each_xaxis(lambda xaxis: xaxis.tickfont.update(size=15))
+    test_fig.for_each_yaxis(lambda yaxis: yaxis.tickfont.update(size=20))
 
     test_fig.update_xaxes(tickangle=0)
-    test_fig.update_layout(coloraxis=dict(colorscale=colors))
+    test_fig.update_layout(coloraxis=dict(colorscale=colors), font=dict(size=20))
     test_fig.update_coloraxes(cmin=0, cmax=1)
-    test_fig.update_layout(margin=dict(t=25, b=40, l=40, r=60))
+    test_fig.update_layout(margin=dict(t=30, b=60, l=80, r=40))
 
-    test_fig.update_annotations(font=dict(size=12))
-    test_fig.layout["annotations"][-1]["xshift"] = -15
-    test_fig.layout["annotations"][-2]["yshift"] = -10
+    test_fig.update_annotations(font=dict(size=30))
+    test_fig.layout["annotations"][-1]["xshift"] -= 8
+    test_fig.layout["annotations"][-2]["yshift"] += 10
 
     if not args.ratio:
         test_fig.update_traces(showlegend=False)
@@ -423,11 +440,27 @@ def plot_test_exclude(tests, ratio=False, verbose=False):
 
     test_fig["layout"]["annotations"][-1]["textangle"] = -90
     test_fig.update_layout(font_family="Serif")
+    print(test_fig.layout.width, test_fig.layout.height)
+    test_fig.update_layout(width=1200, height=800)
+
+    fl = [str(int(float(x))) if int(float(x)) % 10 == 0 else "" for x in fwhms]
+    fl[0] = ""
+    fl[1] = "0"
+    fl[-1] = ""
+    fl[-2] = "20"
+    test_fig.update_xaxes(
+        ticktext=fl,
+        tickvals=fwhms,
+    )
+
+    print(test_fig)
 
     return test_fig
 
 
-def get_parameters_heatmap_subject(test, confidence, fwhm, subjects, verbose):
+def get_parameters_heatmap_subject(
+    test, confidence, fwhm, subjects, verbose, rotate=True
+):
     cell = test.filter(
         (pd.col("confidence") == confidence) & (pd.col("fwhm") == fwhm)
     ).sort(by=["confidence", "fwhm", "reference_subject", "target_subject"])
@@ -440,7 +473,10 @@ def get_parameters_heatmap_subject(test, confidence, fwhm, subjects, verbose):
     y = pivot.columns[1:]
     z = pivot.with_columns((pd.col(subject).cast(pd.Int8) for subject in subjects))
 
-    z = np.rot90(z.to_numpy()[..., 1:])
+    if rotate:
+        z = np.rot90(z.to_numpy()[..., 1:])
+    else:
+        z = z.to_numpy()[..., 1:]
 
     if verbose:
         print("=" * 30)
@@ -484,7 +520,7 @@ def get_parameters_heatmap_template(test, confidence, fwhm, templates, verbose):
     return (x, y, z)
 
 
-def plot_test_template(tests, verbose=False):
+def plot_test_template(args, tests, verbose=False):
     colors = ["#d60000", "#006b0c"]
     colors = colorblind_palette
     zmin = 0
@@ -495,19 +531,14 @@ def plot_test_template(tests, verbose=False):
     nb_tests = len(tests)
     test = tests[0]
 
-    subjects = (
-        test.select(pd.col("reference_subject"))
-        .unique()
-        .sort(by=["reference_subject"])
-        .to_dict(as_series=False)["reference_subject"]
-    )
+    indexes, subjects = subject_to_index(test)
 
     templates = test["target_template"].unique().sort().to_numpy()
 
     rows = templates.size
     cols = len(subjects)
 
-    column_titles = subjects
+    column_titles = indexes
 
     row_titles = []
 
@@ -577,17 +608,16 @@ def plot_test_template(tests, verbose=False):
 
                 test_fig.add_trace(im.data[0], row=row + i * rows, col=col)
 
-        test_fig.for_each_xaxis(lambda xaxis: xaxis.tickfont.update(size=7))
-        test_fig.for_each_yaxis(lambda yaxis: yaxis.tickfont.update(size=3))
-
         test_fig.update_xaxes(tickangle=0)
         test_fig.update_layout(coloraxis=dict(colorscale=colors))
         test_fig.update_coloraxes(cmin=0, cmax=1)
-        test_fig.update_layout(margin=dict(t=25, b=30, l=30, r=70))
+        test_fig.update_layout(margin=dict(t=35, b=55, l=90, r=90))
 
-        test_fig.update_annotations(font=dict(size=10))
-        test_fig.layout["annotations"][-1]["xshift"] = -10
-        test_fig.layout["annotations"][-2]["yshift"] = -10
+        test_fig.update_annotations(font=dict(size=30))
+        test_fig.update_layout(font=dict(size=30))
+
+        test_fig.layout["annotations"][-1]["xshift"] = -40
+        test_fig.layout["annotations"][-2]["yshift"] = -25
 
         if not args.ratio:
             test_fig.update_traces(showlegend=False)
@@ -613,10 +643,30 @@ def plot_test_template(tests, verbose=False):
         )
         test_fig.update_layout(font_family="Serif")
 
+        for annot in test_fig["layout"]["annotations"]:
+            if "%" in annot["text"]:
+                annot["font"]["size"] = 25
+
+        fl = [str(int(float(x))) if int(float(x)) % 10 == 0 else "" for x in fwhms]
+        fl[0] = ""
+        fl[2] = "0"
+        fl[-1] = ""
+        fl[-3] = "20"
+        test_fig.update_xaxes(
+            ticktext=fl,
+            tickvals=fwhms,
+        )
+
+        test_fig.for_each_xaxis(lambda xaxis: xaxis.tickfont.update(size=25))
+        test_fig.for_each_yaxis(lambda yaxis: yaxis.tickfont.update(size=15))
+
+        test_fig.update_layout(width=1200, height=1200)
+
+    print(test_fig)
     return test_fig
 
 
-def plot_test_versions(tests, verbose=False):
+def plot_test_versions(args, tests, verbose=False):
     colors = ["#d60000", "#006b0c"]
     colors = colorblind_palette
     zmin = 0
@@ -627,19 +677,14 @@ def plot_test_versions(tests, verbose=False):
     nb_tests = len(tests)
     test = tests[0]
 
-    subjects = (
-        test.select(pd.col("reference_subject"))
-        .unique()
-        .sort(by=["reference_subject"])
-        .to_dict(as_series=False)["reference_subject"]
-    )
+    indexes, subjects = subject_to_index(test)
 
     versions = test["target_version"].unique().sort().to_numpy()
 
     rows = versions.size
     cols = len(subjects)
 
-    column_titles = subjects
+    column_titles = indexes
 
     row_titles = []
 
@@ -708,26 +753,6 @@ def plot_test_versions(tests, verbose=False):
 
                 test_fig.add_trace(im.data[0], row=row + i * rows, col=col)
 
-        test_fig.for_each_xaxis(lambda xaxis: xaxis.tickfont.update(size=7))
-        test_fig.for_each_yaxis(lambda yaxis: yaxis.tickfont.update(size=3))
-
-        test_fig.update_xaxes(tickangle=0)
-        test_fig.update_layout(coloraxis=dict(colorscale=colors))
-        test_fig.update_coloraxes(cmin=0, cmax=1)
-        test_fig.update_layout(margin=dict(t=25, b=30, l=30, r=70))
-
-        test_fig.update_annotations(font=dict(size=10))
-        test_fig.layout["annotations"][-1]["xshift"] = -10
-        test_fig.layout["annotations"][-2]["yshift"] = -10
-
-        if not args.ratio:
-            test_fig.update_traces(showlegend=False)
-            test_fig.update_coloraxes(showscale=False)
-        else:
-            test_fig.update_layout(coloraxis_colorbar_x=1.05)
-
-        test_fig["layout"]["annotations"][-1]["textangle"] = -90
-
         test_fig.for_each_xaxis(
             lambda x: x.update(
                 tickmode="array",
@@ -742,12 +767,147 @@ def plot_test_versions(tests, verbose=False):
                 ticktext=["0.005", "0.05", "0.15", "0.25", "0.35", "0.45"],
             )
         )
+
         test_fig.update_layout(font_family="Serif")
+
+        test_fig.update_xaxes(tickangle=0)
+        test_fig.update_layout(coloraxis=dict(colorscale=colors))
+        test_fig.update_coloraxes(cmin=0, cmax=1)
+        test_fig.update_layout(margin=dict(t=35, b=55, l=90, r=90))
+
+        test_fig.update_annotations(font=dict(size=30))
+        test_fig.update_layout(font=dict(size=30))
+
+        test_fig.layout["annotations"][-1]["xshift"] = -40
+        test_fig.layout["annotations"][-2]["yshift"] = -25
+
+        if not args.ratio:
+            test_fig.update_traces(showlegend=False)
+            test_fig.update_coloraxes(showscale=False)
+        else:
+            test_fig.update_layout(coloraxis_colorbar_x=1.05)
+
+        test_fig["layout"]["annotations"][-1]["textangle"] = -90
+
+        test_fig.update_layout(font_family="Serif")
+
+        for annot in test_fig["layout"]["annotations"]:
+            if "%" in annot["text"]:
+                annot["font"]["size"] = 25
+
+        fl = [str(int(float(x))) if int(float(x)) % 10 == 0 else "" for x in fwhms]
+        fl[0] = ""
+        fl[2] = "0"
+        fl[-1] = ""
+        fl[-3] = "20"
+        test_fig.update_xaxes(
+            ticktext=fl,
+            tickvals=fwhms,
+        )
+
+        test_fig.for_each_xaxis(lambda xaxis: xaxis.tickfont.update(size=25))
+        test_fig.for_each_yaxis(lambda yaxis: yaxis.tickfont.update(size=12))
+
+        test_fig.update_layout(width=1200, height=1200)
+
+    return test_fig
+
+
+def plot_test_one_ratio(args, labels, tests):
+    verbose = args.verbose
+    tests = [test.collect() for test in tests]
+    test = tests[0]
+
+    subjects = (
+        test.select(pd.col("reference_subject"))
+        .unique()
+        .sort(by=["reference_subject"])
+        .to_dict(as_series=False)["reference_subject"]
+    )
+    confidences = test["confidence"].unique().sort(descending=True).to_numpy()
+
+    fwhms = test["fwhm"].unique().sort().to_numpy()
+
+    rows = len(tests)
+    cols = 1
+
+    test_fig = make_subplots(
+        rows=rows,
+        cols=cols,
+        column_titles="",
+        row_titles=labels,
+        shared_xaxes=True,
+        shared_yaxes=True,
+        x_title="FWHM (mm)",
+        y_title="Alpha threshold",
+        vertical_spacing=0.001,
+        horizontal_spacing=0.001,
+    )
+
+    i = 0
+    for label, test in zip(labels, tests):
+        i += 1
+        print(label)
+
+        rows = confidences.size
+        cols = fwhms.size
+        print(rows, cols)
+
+        econfidences = enumerate(confidences, start=0)
+        efwhms = enumerate(fwhms, start=0)
+
+        _iterator = tqdm.tqdm(
+            itertools.product(econfidences, efwhms), total=rows * cols
+        )
+
+        success_ratio = np.zeros((rows, cols))
+
+        for (row, confidence), (col, fwhm) in _iterator:
+            (x, y, z) = get_parameters_heatmap_subject(
+                test, confidence, fwhm, subjects, verbose=args.verbose, rotate=False
+            )
+
+            diag = np.diagonal(z)
+            success_ratio[row][col] = diag.mean()
+
+        if args.verbose:
+            print(success_ratio)
+
+        fig = go.Heatmap(
+            z=success_ratio,
+            colorscale=px.colors.make_colorscale(["black", "#009E73"]),
+            zmin=0,
+            zmax=1,
+            x=list(str(int(f)) for f in fwhms),
+            y=[f"{1-c:.3f}" for c in confidences],
+        )
+
+        test_fig.add_trace(fig, row=i, col=1)
+
+    test_fig.update_layout(title="", font=dict(size=20))
+    test_fig.update_layout(font_family="Serif")
+    test_fig.update_yaxes(autorange="reversed")
+    test_fig.update_xaxes(
+        ticktext=list(str(int(f)) if f % 5 == 0 else "" for f in fwhms),
+        tickvals=fwhms,
+    )
+    test_fig["layout"]["annotations"][0]["textangle"] = 0
+    test_fig["layout"]["annotations"][1]["textangle"] = 0
+
+    test_fig.update_layout(margin=dict(t=15, b=60, l=80, r=70))
+    test_fig.update_annotations(font=dict(size=20))
+
+    test_fig["layout"]["annotations"][3]["xshift"] -= 10
+
+    print(test_fig)
 
     return test_fig
 
 
 def plot_test_one(args, labels, tests, ratio=False):
+    if ratio:
+        return plot_test_one_ratio(args, labels, tests)
+
     verbose = args.verbose
     if ratio:
         colors = "RdYlGn_r"
@@ -903,9 +1063,9 @@ def plot_test_one(args, labels, tests, ratio=False):
 
 def plotly_backend_exclude(args, pces, mcts, show, no_pce, no_mct, ratio=False):
     if not no_pce:
-        pce_fig = plot_test_exclude(pces, ratio, args.verbose)
+        pce_fig = plot_test_exclude(args, pces, ratio, args.verbose)
     if not no_mct:
-        mct_fig = plot_test_exclude(mcts, ratio, args.verbose)
+        mct_fig = plot_test_exclude(args, mcts, ratio, args.verbose)
 
     if show:
         if not no_pce:
@@ -926,19 +1086,19 @@ def plotly_backend_one(args, pces, mcts, show, no_pce, no_mct, ratio=False):
     if not no_pce:
         print("PCE")
         if args.template:
-            pce_fig = plot_test_template(pces, args.verbose)
+            pce_fig = plot_test_template(args, pces, args.verbose)
         elif args.versions:
-            pce_fig = plot_test_versions(pces, args.verbose)
+            pce_fig = plot_test_versions(args, pces, args.verbose)
         else:
             pce_fig = plot_test_one(args, labels, pces, ratio)
     if not no_mct:
         print(f"MCT {args.mct_method}")
         if args.template:
-            mct_fig = plot_test_template(mcts, args.verbose)
+            mct_fig = plot_test_template(args, mcts, args.verbose)
         elif args.versions:
-            mct_fig = plot_test_versions(mcts, args.verbose)
+            mct_fig = plot_test_versions(args, mcts, args.verbose)
         else:
-            mct_fig = plot_test_one(args, labels, mcts)
+            mct_fig = plot_test_one(args, labels, mcts, ratio)
 
     if show:
         if not no_pce:
@@ -983,11 +1143,11 @@ def get_optimum(df):
     return (alpha_star, fwhm_star)
 
 
-def parse_dataframe(dfs, test, **kwds):
+def parse_dataframe(args, dfs, test, **kwds):
     return list(map(lambda df: test(args, df, **kwds), dfs))
 
 
-def get_optimum_test(references, test_name, tests, ext):
+def get_optimum_test(args, references, test_name, tests, ext):
     for reference, test in zip(references, tests):
         print("=" * 30)
         print(reference)
@@ -1053,6 +1213,7 @@ def plot_exclude(args):
 
     if not args.no_pce:
         pce_tests = parse_dataframe(
+            args,
             dfs,
             get_pce_exclude,
             alpha=alpha,
@@ -1060,12 +1221,13 @@ def plot_exclude(args):
             ratio=args.ratio,
             high_confidence=args.high_confidence,
         )
-        get_optimum_test(references, "pce", pce_tests, ext)
+        get_optimum_test(args, references, "pce", pce_tests, ext)
     else:
         pce_tests = []
 
     if not args.no_mct:
         mct_tests = parse_dataframe(
+            args,
             dfs,
             get_mct_exclude,
             alpha=alpha,
@@ -1074,7 +1236,7 @@ def plot_exclude(args):
             method=args.mct_method,
             high_confidence=args.high_confidence,
         )
-        get_optimum_test(references, "mct", mct_tests, ext)
+        get_optimum_test(args, references, "mct", mct_tests, ext)
     else:
         mct_tests = []
 
@@ -1097,6 +1259,7 @@ def plot_one(args):
     dfs = get_references(references)
     if not args.no_pce:
         pce_tests = parse_dataframe(
+            args,
             dfs,
             get_pce_one,
             alpha=alpha,
@@ -1109,6 +1272,7 @@ def plot_one(args):
 
     if not args.no_mct:
         mct_tests = parse_dataframe(
+            args,
             dfs,
             get_mct_one,
             alpha=alpha,
@@ -1227,7 +1391,7 @@ def parse_args():
     return parser.parse_args()
 
 
-if "__main__" == __name__:
+def main():
     args = parse_args()
     if args.print_args:
         print(args)
@@ -1239,3 +1403,7 @@ if "__main__" == __name__:
             plot_exclude(args)
     elif args.test == "one":
         plot_one(args)
+
+
+if "__main__" == __name__:
+    main()
