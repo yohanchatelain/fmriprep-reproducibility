@@ -1,9 +1,11 @@
-import plotly.express as px
+import argparse
+
+import matplotlib as mpl
+import nibabel
 import nilearn.masking
 import nilearn.plotting
-import nibabel
-import argparse
 import numpy as np
+import plotly.express as px
 
 symmetric_rules = ["shift", "cut"]
 
@@ -27,8 +29,7 @@ def log_image(img):
 
 
 def discretize(img):
-    data = np.ceil(img.get_fdata())
-    print(data[120, 100])
+    data = np.floor(img.get_fdata())
     return nibabel.Nifti1Image(data, img.affine)
 
 
@@ -63,6 +64,13 @@ def load_mask(args):
 def plot(args):
     img = load_img(args)
 
+    if args.discretize:
+        cmap = mpl.colormaps.get_cmap(args.cmap).resampled(
+            np.abs(args.vmax - args.vmin)
+        )
+    else:
+        cmap = mpl.colormaps.get_cmap(args.cmap)
+
     cut_coords = tuple(map(int, args.cut_coords))
     if args.show:
         view = nilearn.plotting.view_img(
@@ -70,7 +78,7 @@ def plot(args):
             cut_coords=cut_coords,
             black_bg=True,
             bg_img=None,
-            cmap=args.cmap,
+            cmap=cmap,
             vmin=args.vmin,
             vmax=args.vmax,
             symmetric_cmap=False,
@@ -85,7 +93,7 @@ def plot(args):
             black_bg=True,
             bg_img=None,
             output_file=args.output,
-            cmap=args.cmap,
+            cmap=cmap,
             threshold=args.threshold,
             vmin=args.vmin,
             vmax=args.vmax,

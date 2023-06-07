@@ -370,7 +370,7 @@ def plot_test_exclude(args, tests, ratio=False, verbose=False):
         shared_xaxes=True,
         shared_yaxes=True,
         x_title="FWHM (mm)",
-        y_title=r"Alpha threshold",
+        y_title="α threshold",
         vertical_spacing=0.005,
         horizontal_spacing=0.005,
     )
@@ -426,7 +426,7 @@ def plot_test_exclude(args, tests, ratio=False, verbose=False):
     test_fig.update_xaxes(tickangle=0)
     test_fig.update_layout(coloraxis=dict(colorscale=colors), font=dict(size=20))
     test_fig.update_coloraxes(cmin=0, cmax=1)
-    test_fig.update_layout(margin=dict(t=30, b=60, l=80, r=40))
+    test_fig.update_layout(margin=dict(t=80, b=60, l=80, r=40))
 
     test_fig.update_annotations(font=dict(size=30))
     test_fig.layout["annotations"][-1]["xshift"] -= 8
@@ -441,7 +441,7 @@ def plot_test_exclude(args, tests, ratio=False, verbose=False):
     test_fig["layout"]["annotations"][-1]["textangle"] = -90
     test_fig.update_layout(font_family="Serif")
     print(test_fig.layout.width, test_fig.layout.height)
-    test_fig.update_layout(width=1200, height=800)
+    test_fig.update_layout(width=800, height=800)
 
     fl = [str(int(float(x))) if int(float(x)) % 10 == 0 else "" for x in fwhms]
     fl[0] = ""
@@ -453,6 +453,16 @@ def plot_test_exclude(args, tests, ratio=False, verbose=False):
         tickvals=fwhms,
     )
 
+    test_fig.update_layout(
+        title={
+            "text": "Subjects",
+            "yref": "container",
+            "x": 0.5,
+            "y": 0.99,
+            "xanchor": "center",
+            "yanchor": "top",
+        }
+    )
     print(test_fig)
 
     return test_fig
@@ -562,7 +572,7 @@ def plot_test_template(args, tests, verbose=False):
         shared_xaxes=True,
         shared_yaxes=True,
         x_title="FWHM (mm)",
-        y_title="Alpha threshold",
+        y_title=r"$\alpha threshold$",
         vertical_spacing=0.00001,
         horizontal_spacing=0.001,
         specs=specs,
@@ -707,7 +717,7 @@ def plot_test_versions(args, tests, verbose=False):
         shared_xaxes=True,
         shared_yaxes=True,
         x_title="FWHM (mm)",
-        y_title="Alpha threshold",
+        y_title="α threshold",
         vertical_spacing=0.001,
         horizontal_spacing=0.001,
         specs=specs,
@@ -839,7 +849,7 @@ def plot_test_one_ratio(args, labels, tests):
         shared_xaxes=True,
         shared_yaxes=True,
         x_title="FWHM (mm)",
-        y_title="Alpha threshold",
+        y_title="α threshold",
         vertical_spacing=0.001,
         horizontal_spacing=0.001,
     )
@@ -965,7 +975,7 @@ def plot_test_one(args, labels, tests, ratio=False):
             shared_xaxes=True,
             shared_yaxes=True,
             x_title=xtitle,
-            y_title="Alpha threhold",
+            y_title="α threhold",
             vertical_spacing=0,
             horizontal_spacing=0,
         )
@@ -1076,8 +1086,10 @@ def plotly_backend_exclude(args, pces, mcts, show, no_pce, no_mct, ratio=False):
     ext = "_ratio" if args.ratio else ""
 
     if not no_pce:
+        pio.full_figure_for_development(pce_fig, warn=False)
         pce_fig.write_image(f"{args.test}_pce{ext}.pdf")
     if not no_mct:
+        pio.full_figure_for_development(mct_fig, warn=False)
         mct_fig.write_image(f"{args.test}_mct{ext}_{args.mct_method}.pdf")
 
 
