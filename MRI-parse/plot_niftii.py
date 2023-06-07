@@ -1,3 +1,4 @@
+import plotly.express as px
 import nilearn.masking
 import nilearn.plotting
 import nibabel
@@ -25,6 +26,12 @@ def log_image(img):
     return nibabel.Nifti1Image(log_data, img.affine)
 
 
+def discretize(img):
+    data = np.ceil(img.get_fdata())
+    print(data[120, 100])
+    return nibabel.Nifti1Image(data, img.affine)
+
+
 def load_img(args):
     img = nibabel.load(args.filename)
     if args.mask:
@@ -41,6 +48,9 @@ def load_img(args):
         img = shift_image(img)
     elif args.force_symmetric == "cut":
         img = cut_image(img)
+
+    if args.discretize:
+        img = discretize(img)
 
     return img
 
@@ -108,6 +118,7 @@ def parse_args():
         "--show", action="store_true", help="Dynamic visualization in browser"
     )
     parser.add_argument("--fwhm", type=float, help="Apply kernel smoothing (mm)")
+    parser.add_argument("--discretize", action="store_true", help="Discretize values")
     args = parser.parse_args()
     return args
 
