@@ -420,11 +420,11 @@ def plot_test_exclude(args, tests, ratio=False, verbose=False):
 
             test_fig.add_trace(im.data[0], row=row, col=col)
 
-    test_fig.for_each_xaxis(lambda xaxis: xaxis.tickfont.update(size=15))
+    test_fig.for_each_xaxis(lambda xaxis: xaxis.tickfont.update(size=16))
     test_fig.for_each_yaxis(lambda yaxis: yaxis.tickfont.update(size=20))
 
     test_fig.update_xaxes(tickangle=0)
-    test_fig.update_layout(coloraxis=dict(colorscale=colors), font=dict(size=20))
+    test_fig.update_layout(coloraxis=dict(colorscale=colors), font=dict(size=25))
     test_fig.update_coloraxes(cmin=0, cmax=1)
     test_fig.update_layout(margin=dict(t=80, b=60, l=80, r=40))
 
@@ -447,7 +447,7 @@ def plot_test_exclude(args, tests, ratio=False, verbose=False):
     fl[0] = ""
     fl[1] = "0"
     fl[-1] = ""
-    fl[-2] = "20"
+    fl[-3] = "20"
     test_fig.update_xaxes(
         ticktext=fl,
         tickvals=fwhms,
@@ -572,7 +572,7 @@ def plot_test_template(args, tests, verbose=False):
         shared_xaxes=True,
         shared_yaxes=True,
         x_title="FWHM (mm)",
-        y_title=r"$\alpha threshold$",
+        y_title="α threshold",
         vertical_spacing=0.00001,
         horizontal_spacing=0.001,
         specs=specs,
@@ -621,7 +621,19 @@ def plot_test_template(args, tests, verbose=False):
         test_fig.update_xaxes(tickangle=0)
         test_fig.update_layout(coloraxis=dict(colorscale=colors))
         test_fig.update_coloraxes(cmin=0, cmax=1)
-        test_fig.update_layout(margin=dict(t=35, b=55, l=90, r=90))
+        test_fig.update_layout(margin=dict(t=70, b=60, l=90, r=90))
+
+        test_fig.update_layout(
+            title={
+                "text": "Subjects",
+                "yref": "container",
+                "x": 0.5,
+                "y": 1,
+                "xanchor": "center",
+                "yanchor": "top",
+                "font_size": 30,
+            }
+        )
 
         test_fig.update_annotations(font=dict(size=30))
         test_fig.update_layout(font=dict(size=30))
@@ -655,7 +667,7 @@ def plot_test_template(args, tests, verbose=False):
 
         for annot in test_fig["layout"]["annotations"]:
             if "%" in annot["text"]:
-                annot["font"]["size"] = 25
+                annot["font"]["size"] = 30
 
         fl = [str(int(float(x))) if int(float(x)) % 10 == 0 else "" for x in fwhms]
         fl[0] = ""
@@ -667,10 +679,10 @@ def plot_test_template(args, tests, verbose=False):
             tickvals=fwhms,
         )
 
-        test_fig.for_each_xaxis(lambda xaxis: xaxis.tickfont.update(size=25))
+        test_fig.for_each_xaxis(lambda xaxis: xaxis.tickfont.update(size=20))
         test_fig.for_each_yaxis(lambda yaxis: yaxis.tickfont.update(size=15))
 
-        test_fig.update_layout(width=1200, height=1200)
+        test_fig.update_layout(width=800, height=1400)
 
     print(test_fig)
     return test_fig
@@ -783,7 +795,7 @@ def plot_test_versions(args, tests, verbose=False):
         test_fig.update_xaxes(tickangle=0)
         test_fig.update_layout(coloraxis=dict(colorscale=colors))
         test_fig.update_coloraxes(cmin=0, cmax=1)
-        test_fig.update_layout(margin=dict(t=35, b=55, l=90, r=90))
+        test_fig.update_layout(margin=dict(t=65, b=55, l=90, r=90))
 
         test_fig.update_annotations(font=dict(size=30))
         test_fig.update_layout(font=dict(size=30))
@@ -803,7 +815,7 @@ def plot_test_versions(args, tests, verbose=False):
 
         for annot in test_fig["layout"]["annotations"]:
             if "%" in annot["text"]:
-                annot["font"]["size"] = 25
+                annot["font"]["size"] = 30
 
         fl = [str(int(float(x))) if int(float(x)) % 10 == 0 else "" for x in fwhms]
         fl[0] = ""
@@ -815,11 +827,21 @@ def plot_test_versions(args, tests, verbose=False):
             tickvals=fwhms,
         )
 
-        test_fig.for_each_xaxis(lambda xaxis: xaxis.tickfont.update(size=25))
-        test_fig.for_each_yaxis(lambda yaxis: yaxis.tickfont.update(size=12))
+        test_fig.for_each_xaxis(lambda xaxis: xaxis.tickfont.update(size=20))
+        test_fig.for_each_yaxis(lambda yaxis: yaxis.tickfont.update(size=13))
 
-        test_fig.update_layout(width=1200, height=1200)
-
+        test_fig.update_layout(width=800, height=1400)
+        test_fig.update_layout(
+            title={
+                "text": "Subjects",
+                "yref": "container",
+                "x": 0.5,
+                "y": 1,
+                "xanchor": "center",
+                "yanchor": "top",
+                "font_size": 30,
+            }
+        )
     return test_fig
 
 
@@ -890,11 +912,16 @@ def plot_test_one_ratio(args, labels, tests):
             zmax=1,
             x=list(str(int(f)) for f in fwhms),
             y=[f"{1-c:.3f}" for c in confidences],
+            colorbar=dict(x=1.07),
         )
 
         test_fig.add_trace(fig, row=i, col=1)
 
-    test_fig.update_layout(title="", font=dict(size=20))
+    test_fig.update_layout(
+        title="",
+        font=dict(size=20),
+    )
+
     test_fig.update_layout(font_family="Serif")
     test_fig.update_yaxes(autorange="reversed")
     test_fig.update_xaxes(
@@ -904,10 +931,13 @@ def plot_test_one_ratio(args, labels, tests):
     test_fig["layout"]["annotations"][0]["textangle"] = 0
     test_fig["layout"]["annotations"][1]["textangle"] = 0
 
-    test_fig.update_layout(margin=dict(t=15, b=60, l=80, r=70))
-    test_fig.update_annotations(font=dict(size=20))
+    test_fig.update_layout(margin=dict(t=15, b=60, l=80, r=80))
+    test_fig.update_annotations(font=dict(size=25))
 
     test_fig["layout"]["annotations"][3]["xshift"] -= 10
+
+    test_fig.for_each_xaxis(lambda xaxis: xaxis.tickfont.update(size=25))
+    test_fig.for_each_yaxis(lambda yaxis: yaxis.tickfont.update(size=20))
 
     print(test_fig)
 
