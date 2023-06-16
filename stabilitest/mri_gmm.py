@@ -1,8 +1,8 @@
 import numpy as np
 import os
 import re
-import mri_printer
-import mri_image
+import stabilitest.pprinter as pprinter
+import stabilitest.MRI.mri_image as mri_image
 from sklearn.model_selection import KFold
 from sklearn.mixture import GaussianMixture
 import json
@@ -122,7 +122,7 @@ def gmm_fit(x):
 
 
 def compute_gmm(args):
-    reference_t1s, reference_masks = mri_image.get_reference(
+    reference_t1s, reference_masks = mri_image.load(
         prefix=args.reference_prefix,
         subject=args.reference_subject,
         dataset=args.reference_dataset,
@@ -132,21 +132,18 @@ def compute_gmm(args):
 
     kfold = KFold(len(reference_t1s))
 
-    # leave-one-out
-    # one_out
-    # ones_in
     kfold_split = kfold.split(reference_t1s)
 
     lock = FileLock("mri_gmm.lock")
 
     for i, (ones_in, _) in enumerate(kfold_split, start=1):
-        mri_printer.print_sep2(f"Round {i:2}")
+        pprinter.print_sep2(f"Round {i:2}")
 
         t1s_ref = reference_t1s[ones_in]
         masks_ref = reference_masks[ones_in]
         filenames = [img.get_filename() for img in t1s_ref]
 
-        t1s_masked, _ = mri_image.mask_t1(args, t1s_ref, masks_ref)
+        t1s_masked, _ = mri_image.get_masked_t1s(args, t1s_ref, masks_ref)
 
         m, reg_covar = gmm_fit(t1s_masked)
 

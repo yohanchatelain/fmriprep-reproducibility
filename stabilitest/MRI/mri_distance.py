@@ -1,11 +1,11 @@
-import numpy as np
-import itertools
-import mri_image
-import mri_constants
-import scipy.spatial.distance as sdist
-import tqdm
 import os
+
+import numpy as np
 import pandas as pd
+import scipy.spatial.distance as sdist
+
+import stabilitest.MRI.mri_constants as mri_constants
+import stabilitest.MRI.mri_image as mri_image
 
 
 def _hash(args, ext):
@@ -47,23 +47,23 @@ def _get_reference(args, ext):
     if _has_memoization(args, ext):
         references_masked = _get_memoized(args, ext)
     else:
-        references, reference_masks = mri_image.get_reference(
+        references, reference_masks = mri_image.load(
             prefix=args.reference_prefix,
             subject=args.reference_subject,
             dataset=args.reference_dataset,
             template=args.template,
             data_type=args.data_type,
-            reference_ext=ext,
+            extension=ext,
         )
-        references_masked, _ = mri_image.mask_t1(args, references, reference_masks)
+        references_masked, _ = mri_image.get_masked_t1s(
+            args, references, reference_masks
+        )
         _memoizes(args, ext, references_masked)
 
     return references_masked
 
 
 def compute_discrete_distance(df, info, array):
-    pass
-
     bg = array == 0
     gm = array == 1
     wm = array == 2

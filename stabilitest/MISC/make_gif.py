@@ -2,14 +2,14 @@ import nilearn.masking
 import json
 import nilearn.plotting
 import os
-import mri_image
+import stabilitest.MRI.mri_image as mri_image
 from PIL import Image
 import argparse
 import tempfile
 
 
 def get_images(args):
-    t1s, masks = mri_image.get_reference(
+    t1s, masks = mri_image.load(
         args.prefix,
         args.subject,
         args.dataset,
@@ -18,7 +18,7 @@ def get_images(args):
         args.normalize,
     )
     if args.mask_type in ("union", "intersection"):
-        t1s_masked, supermask = mri_image.mask_t1(args, t1s, masks)
+        t1s_masked, supermask = mri_image.get_masked_t1s(args, t1s, masks)
     else:
         # Do not apply mask
         t1s_masked = nilearn.image.smooth_img(t1s, args.fwh)
@@ -107,7 +107,7 @@ def main():
     if args.verbose:
         print(args)
     t1s_masked, supermask = get_images(args)
-    T1s, masks = mri_image.get_reference(
+    T1s, masks = mri_image.load(
         args.prefix,
         args.subject,
         args.dataset,

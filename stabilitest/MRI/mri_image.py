@@ -6,11 +6,11 @@ import glob
 import os
 import nilearn
 import nilearn.masking
-import multiprocessing as mp
 from multiprocessing import Pool
+import logging
 
-import mri_printer as mrip
-import mri_constants
+import stabilitest.pprinter as mrip
+import stabilitest.MRI.mri_constants as mri_constants
 import mri_normality
 import tqdm
 from tqdm.contrib.concurrent import process_map  # or thread_map
@@ -20,7 +20,7 @@ Loader and dumper
 """
 
 
-def load_image(path):
+def load_derivative(path):
     return nibabel.load(path)
 
 
@@ -78,36 +78,21 @@ def dump_p_values(target, p_value, supermask, alpha):
     dump_stat(target, p_value, supermask, alpha, stat_name="p_value")
 
 
-def get_images(paths, preproc_re):
+def load_derivatives(root_paths, derivative_path):
     """
-    Load Nifti1Image from image paths
+    Load derivatives from paths
     """
-    images = []
-    for path in paths:
-        image_path = glob.glob(os.path.join(path, preproc_re))
-        if len(image_path) != 0:
-            image = load_image(image_path[0])
+    derivatives = []
+    for path in root_paths:
+        dpath = glob.glob(os.path.join(path, derivative_path))
+        if len(dpath) > 1:
+            logging.warning(f"More than one file found for {dpath}")
+            image = load_derivative(dpath[0])
         else:
             continue
-        images.append(image)
+        derivatives.append(image)
 
-    return np.array(images)
-
-
-def get_masks(paths, brain_mask_re):
-    """
-    Load Nifti1Image from mask paths
-    """
-    masks = []
-    for path in paths:
-        mask_path = glob.glob(os.path.join(path, brain_mask_re))
-        if len(mask_path) != 0:
-            mask = load_image(mask_path[0])
-            masks.append(mask)
-        else:
-            continue
-
-    return np.array(masks)
+    return np.array(derivatives)
 
 
 def combine_mask(masks_list, operator):
@@ -120,18 +105,7 @@ def combine_mask(masks_list, operator):
         threshold = 1
     else:
         threshold = 0.5
-    # print(masks_list)
     return nilearn.masking.intersect_masks(masks_list, threshold=threshold)
-
-
-def smooth_image(image, kernel_smooth):
-    """
-    Smooth image with kernel size kernel_smooth
-    """
-    if kernel_smooth > 0:
-        return nilearn.image.smooth_img(image, kernel_smooth)
-    else:
-        return image
 
 
 def resample_image(source, target):
@@ -147,56 +121,73 @@ def resample_images(sources, target):
     return np.array(resampled_images)
 
 
+def normalize_ndarray(ndarray):
+    return (ndarray - ndarray.min()) / (ndarray.max() - ndarray.min())
+
+
 def normalize_image(image):
     voxels = image.get_fdata()
-    normalized_image = (voxels - voxels.min()) / (voxels.max() - voxels.min())
+    normalized_image = normalize_ndarray(voxels)
     new = nibabel.Nifti1Image(normalized_image, image.affine)
     new.set_filename(image.get_filename())
     return new
 
 
-def get_preproc_re(subject, template, preproc_ext=mri_constants.t1_preproc_extension):
-    return f"{subject}_space-{template}{preproc_ext}"
-
-
-def get_brainmask_re(
-    subject, template, brainmask_ext=mri_constants.brain_mask_extension
-):
-    return f"{subject}_space-{template}{brainmask_ext}"
-
-
-def get_paths(prefix, dataset, subject, data_type):
-    regexp = os.path.join(prefix, f"*{dataset}*", "**", subject, data_type)
+def get_paths(prefix, dataset):
+    regexp = os.path.join(prefix, f"*{dataset}*", "**")
     paths = glob.glob(regexp, recursive=True)
     return paths
 
 
-def get_reference(
+def load(
     prefix,
-    subject,
     dataset,
+    subject,
     template,
-    data_type,
-    reference_ext=mri_constants.t1_preproc_extension,
+    datatype,
+    derivative,
 ):
     """
     Returns T1 + mask images for given prefix, subject and dataset
     """
-    preproc_re = get_preproc_re(subject, template, reference_ext)
-    brain_mask_re = get_brainmask_re(subject, template)
-    paths = get_paths(prefix, dataset, subject, data_type)
+    root_paths = get_paths(prefix, dataset)
+    derivative_path = mri_constants.get_derivatives_path(
+        dataset=dataset,
+        subject=subject,
+        template=template,
+        datatype=datatype,
+        derivative=derivative,
+    )
 
-    images = get_images(paths, preproc_re)
-    masks = get_masks(paths, brain_mask_re)
+    derivatives = load_derivatives(root_paths, derivative_path)
 
-    if len(images) == 0:
-        print("No T1 images found")
-        raise Exception("T1ImagesEmpty")
-    if len(masks) == 0:
-        print("No brain masks found")
-        raise Exception("BrainMasksEmpty")
+    if len(derivatives) == 0:
+        print(f"No derivatives {derivative} found")
+        raise Exception("DerivativeEmpty")
 
-    return images, masks
+    return derivatives
+
+
+def load_t1w(prefix, dataset, subject, template, datatype):
+    return load(
+        prefix=prefix,
+        dataset=dataset,
+        subject=subject,
+        template=template,
+        datatype=datatype,
+        derivative=mri_constants.Derivative.T1wPreproc,
+    )
+
+
+def load_brain_mask(prefix, dataset, subject, template, datatype):
+    return load(
+        prefix=prefix,
+        dataset=dataset,
+        subject=subject,
+        template=template,
+        datatype=datatype,
+        derivative=mri_constants.Derivative.BrainMask,
+    )
 
 
 def get_masked_t1(t1, mask, smooth_kernel, normalize):
@@ -206,7 +197,7 @@ def get_masked_t1(t1, mask, smooth_kernel, normalize):
         imgs=t1, mask_img=mask, smoothing_fwhm=smooth_kernel
     )
     if normalize:
-        masked = (masked - masked.min()) / (masked.max() - masked.min())
+        masked = normalize_ndarray(masked)
 
     return masked
 
@@ -215,19 +206,10 @@ def get_masked_t1_curr(margs):
     t1, mask, args = margs
     smooth_kernel = args.smooth_kernel
     normalize = args.normalize
-    if smooth_kernel == 0:
-        smooth_kernel = None
-    masked = nilearn.masking.apply_mask(
-        imgs=t1, mask_img=mask, smoothing_fwhm=smooth_kernel
-    )
-    if normalize:
-        masked = (masked - masked.min()) / (masked.max() - masked.min())
-
-    return masked
+    return get_masked_t1(t1, mask, smooth_kernel, normalize)
 
 
-def mask_t1(args, t1s, masks):
-    supermask = combine_mask(masks, args.mask_combination)
+def get_masked_t1s(args, t1s, supermask):
     results = []
     with Pool(args.cpus) as p:
         nt1s = len(t1s)
@@ -241,15 +223,6 @@ def mask_t1(args, t1s, masks):
     return np.stack(results), supermask
 
 
-def get_reference_gmm(gmm_prefix, reference_subject, reference_dataset, n_components):
-    path = f"{reference_dataset}_{reference_subject}_AI_{n_components}"
-    if gmm_prefix:
-        path = gmm_prefix + os.path.sep + path
-    with open(path, "rb") as fi:
-        return pickle.load(fi)
-    return None
-
-
 def get_template(template):
     image_path = tflow.get(
         template, desc=None, resolution=1, suffix="T1w", extension="nii.gz"
@@ -257,7 +230,6 @@ def get_template(template):
     mask_path = tflow.get(
         template, desc="brain", resolution=1, suffix="mask", extension="nii.gz"
     )
-
     image = nibabel.load(image_path)
     mask = nibabel.load(mask_path)
     return mask_image(image, mask.get_fdata())

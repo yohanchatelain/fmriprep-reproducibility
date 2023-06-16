@@ -1,6 +1,6 @@
 import argparse
 import os
-import mri_image
+import stabilitest.MRI.mri_image as mri_image
 from sklearn.model_selection import KFold
 import significantdigits
 import numpy as np
@@ -17,7 +17,7 @@ def compute_sig(array, reference):
 def compute_k_fold_sig(args, reference_t1, reference_mask):
     kfold = KFold(len(reference_t1))
 
-    t1_masked, _ = mri_image.mask_t1(args, reference_t1, reference_mask)
+    t1_masked, _ = mri_image.get_masked_t1s(args, reference_t1, reference_mask)
     global_reference = np.mean(t1_masked, axis=0)
     global_sig = compute_sig(t1_masked, global_reference)
 
@@ -56,7 +56,7 @@ def compute_sig_loo(args):
     """
     compute significant digits for leave-one-out
     """
-    reference_t1s, reference_masks = mri_image.get_reference(
+    reference_t1s, reference_masks = mri_image.load(
         prefix=args.reference_prefix,
         subject=args.reference_subject,
         dataset=args.reference_dataset,
