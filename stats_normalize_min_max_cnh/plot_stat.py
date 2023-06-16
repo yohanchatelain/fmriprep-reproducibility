@@ -153,7 +153,7 @@ def create_figure(args):
 
 
 def create_dataset_subject_map(df_modes):
-    _ds = dict()
+    _ds = {}
     for df_mode in df_modes:
         ds = df_mode[["dataset", "subject"]]
         for row in ds.iterrows():
@@ -191,6 +191,9 @@ def plot(args):
 
     for i, stat in enumerate(statistics, start=1):
         for j, df_mode in enumerate(df_modes, start=1):
+            print(df_mode[df_mode.stat == stat["name"]])
+            _min = df_mode[df_mode.stat == stat["name"]].min()["mean"]
+            _max = df_mode[df_mode.stat == stat["name"]].max()["mean"]
             sc = px.scatter(
                 df_mode[df_mode.stat == stat["name"]],
                 x="fwh",
@@ -211,7 +214,24 @@ def plot(args):
                     row=i,
                     col=j,
                 )
+            sc.add_hline(
+                y=_min,
+                annotation_text=f"{_min:.2f}",
+                line_dash="dot",
+                line_color="grey",
+            )
+            sc.add_hline(
+                y=_max,
+                annotation_text=f"{_max:.2f}",
+                line_dash="dot",
+                line_color="grey",
+            )
+            print(sc)
             fig.add_traces(sc.data, rows=i, cols=j)
+            fig.add_annotation(sc.layout.annotations[0], row=i, col=j)
+            fig.add_shape(sc.layout.shapes[0], row=i, col=j)
+            fig.add_annotation(sc.layout.annotations[1], row=i, col=j)
+            fig.add_shape(sc.layout.shapes[1], row=i, col=j)
 
     fig.update_traces(marker=dict(size=args.marker_size), mode="lines+markers")
     fig.for_each_trace(
@@ -237,9 +257,9 @@ def plot(args):
         ),
         margin=dict(l=50, r=10, b=30, t=30),
     )
-
-    fig["layout"]["annotations"][-1]["xshift"] += 20
-    fig["layout"]["annotations"][-2]["yshift"] -= 5
+    print(fig)
+    fig["layout"]["annotations"][-5]["xshift"] += 20
+    fig["layout"]["annotations"][-6]["yshift"] -= 5
 
     fig.update_annotations(font=dict(size=args.font_size))
     fig.update_layout(font_family="Serif")
