@@ -33,8 +33,13 @@ def discretize(img):
     return nibabel.Nifti1Image(data, img.affine)
 
 
+def _load_img(filename):
+    img = nibabel.load(filename)
+    return img
+
+
 def load_img(args):
-    img = nibabel.load(args.filename)
+    img = _load_img(args.filename)
     if args.mask:
         mask = load_mask(args)
         img = nilearn.masking.apply_mask(
@@ -63,7 +68,6 @@ def load_mask(args):
 
 def plot(args):
     img = load_img(args)
-
     if args.discretize:
         cmap = mpl.colormaps.get_cmap(args.cmap).resampled(
             np.abs(args.vmax - args.vmin)

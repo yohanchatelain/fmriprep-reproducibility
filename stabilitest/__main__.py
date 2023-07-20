@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
+import stabilitest
 import stabilitest.snr as snr
 import warnings
 
 import stabilitest.parse_args as parse_args
 import stabilitest.MRI.mri_distance as mri_distance
-import stabilitest.mri_test as mri_test
+import stabilitest.model as model
 import mri_gmm
-import stabilitest.statistics.multiple_testing as mri_mt
 import mri_normality
 import stabilitest.pprinter as pprinter
 from stabilitest.collect import stats_collect
@@ -16,21 +16,18 @@ from stabilitest.collect import stats_collect
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
-def run_all_include(args):
-    if args.gmm_paths or args.gmm_component:
-        fvr = mri_test.compute_all_include_gmm_fvr(args)
-    else:
-        fvr = mri_test.compute_all_include_fvr(args)
+def run_all(args):
+    fvr = model.run_all(args)
     return fvr
 
 
 def run_loo(args):
-    fvr = mri_test.compute_loo(args)
+    fvr = model.run_loo(args)
     return fvr
 
 
 def run_one(args):
-    fvr = mri_test.compute_one_fvr(args)
+    fvr = model.run_one(args)
     return fvr
 
 
@@ -40,16 +37,12 @@ def run_normality(args):
 
 
 def run_k_fold(args):
-    fvr = mri_test.compute_k_fold(args)
+    fvr = model.run_kfold(args)
     return fvr
 
 
 def run_stats(args):
-    mri_test.compute_stats(args)
-
-
-def run_gmm(args):
-    mri_gmm.main(args)
+    stabilitest.statistics.stats.compute_stats(args)
 
 
 def run_distance(args):
@@ -61,13 +54,12 @@ def run_snr(args):
 
 
 tests = {
-    "all-include": run_all_include,
+    "all": run_all,
     "loo": run_loo,
+    "k-fold": run_k_fold,
     "one": run_one,
     "normality": run_normality,
-    "k-fold": run_k_fold,
     "stats": run_stats,
-    "gmm": run_gmm,
     "distance": run_distance,
     "snr": run_snr,
 }

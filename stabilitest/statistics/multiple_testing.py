@@ -36,13 +36,12 @@ def pce(target, alpha, p_values):
     return nb_reject, size
 
 
-def pce_sig(target, alpha, ref, test):
+def pce_sig(target, alpha, reject):
     """
     Compute the Per-Comparison Error rate (uncorrected) for significant bits
     """
     name = "PCE-sig"
-    size = ref.size
-    reject = test < ref
+    size = reject.size
     nb_reject = np.ma.sum(reject)
     ratio = nb_reject / size
     passed = ratio <= alpha

@@ -1,11 +1,17 @@
+import stabilitest
 import argparse
 
-NaN = float("nan")
-
-default_templates = ["MNI152NLin2009cAsym", "MNI152NLin6Asym"]
+cross_validation_models = ["kta", "loo", "kfold"]
 
 
 def init_global_args(parser):
+    parser.add_argument(
+        "--cross-validation",
+        action="store",
+        choices=cross_validation_models,
+        help="Run cross-validation",
+    )
+
     parser.add_argument(
         "--confidence",
         action="store",
@@ -13,57 +19,6 @@ def init_global_args(parser):
         type=float,
         help="Confidence",
         nargs="+",
-    )
-    parser.add_argument(
-        "--reference-template", action="store", required=True, help="Reference template"
-    )
-
-    parser.add_argument(
-        "--datatype", action="store", default="anat", choices=["anat"], help="Data type"
-    )
-
-    parser.add_argument(
-        "--reference-prefix",
-        action="store",
-        required=True,
-        help="Reference prefix path",
-    )
-    parser.add_argument(
-        "--reference-dataset", action="store", required=True, help="Dataset reference"
-    )
-    parser.add_argument(
-        "--reference-subject", action="store", required=True, help="Subject reference"
-    )
-
-    parser.add_argument(
-        "--mask-non-normal-voxels",
-        action="store_true",
-        help="Mask voxels that do not pass the normality test (Shapiro-Wild)",
-    )
-
-    parser.add_argument(
-        "--smooth-kernel",
-        "--fwh",
-        "--fwhm",
-        action="store",
-        type=float,
-        default=0.0,
-        help="Size of the kernel smoothing",
-    )
-
-    parser.add_argument(
-        "--mask-combination",
-        action="store",
-        type=str,
-        choices=["union", "intersection", "map"],
-        default="union",
-        help="Method to combine brain mask (map applies each brain mask to the image repetition)",
-    )
-
-    parser.add_argument(
-        "--normalize",
-        action="store_true",
-        help="Normalize the T1w to have [0,1] intensities",
     )
 
     parser.add_argument(
@@ -74,20 +29,6 @@ def init_global_args(parser):
     )
 
     parser.add_argument("--verbose", action="store_true", help="verbose mode")
-    parser.add_argument(
-        "--score",
-        choices=["z-score", "t-score"],
-        default="z-score",
-        help="Score to use",
-    )
-
-    parser.add_argument("--gmm", action="store_true", help="Use GMM model")
-
-    parser.add_argument(
-        "--compare-significant-digits",
-        action="store_true",
-        help="Compare significant digits maps",
-    )
 
     parser.add_argument(
         "--distribution",
@@ -96,6 +37,7 @@ def init_global_args(parser):
             "student",
             "normal-skew",
             "normal-general",
+            "gaussian-mixture",
             "significant-digit",
         ],
         default="normal",
@@ -111,20 +53,15 @@ def init_global_args(parser):
     )
 
 
-def init_module_all_include(parser):
+def init_module_kta(parser):
     msg = """
-    Sanity check that tests that the reference interval computed contains each
+    
+    Cross-validation that tests that the reference interval computed contains each
     reference observation. The reference interval is computed by using the all
-    observations, including the one being tested.
+    observations (keep-them-all), including the one being tested.
     """
-    subparser = parser.add_parser("all-include", help=msg)
+    subparser = parser.add_parser("kta", help=msg)
     init_global_args(subparser)
-    subparser.add_argument(
-        "--gmm-paths", action="store", help="Paths containing GMM objects"
-    )
-    subparser.add_argument(
-        "--gmm-component", action="store", type=int, help="Number of GMM components"
-    )
 
 
 def init_module_loo(parser):
@@ -134,8 +71,23 @@ def init_module_loo(parser):
     observations, excluding the one being tested.
     """
     subparser = parser.add_parser("loo", help=msg)
+    init_global_args(subparser)
+
+
+def init_module_k_fold(parser):
+    msg = """
+    Sanity check that tests that the reference interval (train set)
+    computed contain reference observations (test set).
+    The train/test is splitted with a 80/20 ratio and
+    is done K times.
+    """
+    subparser = parser.add_parser("k-fold", help=msg)
     subparser.add_argument(
-        "--gmm-cache", default=".mri_cache", help="Directory to cache gmm models"
+        "--k-fold-rounds",
+        action="store",
+        type=int,
+        default=5,
+        help="Number of K-fold rounds to perform",
     )
     init_global_args(subparser)
 
@@ -161,56 +113,29 @@ def init_module_one(parser):
     )
 
 
+# Domain submodules
+def init_module_smri(parser):
+    msg = """
+    Submodule for Structural MRI analysis
+    """
+    subparser = parser.add_parser("smri", help=msg)
+    init_global_args(subparser)
+
+
+# Global submodules (to load before domain submodules)
+def init_module_test(parser):
+    msg = """
+    Submodule for single test
+    """
+    subparser = parser.add_parser("test", help=msg)
+    init_global_args(subparser)
+
+
 def init_module_normality(parser):
     msg = """
     Apply a voxel-wise normality test
     """
     subparser = parser.add_parser("normality", help=msg)
-    init_global_args(subparser)
-
-
-def init_module_k_fold(parser):
-    msg = """
-    Sanity check that tests that the reference interval (train set)
-    computed contain reference observations (test set).
-    The train/test is splitted with a 80/20 ratio and
-    is done K times.
-    """
-    subparser = parser.add_parser("k-fold", help=msg)
-    subparser.add_argument(
-        "--k-fold-rounds",
-        action="store",
-        type=int,
-        default=5,
-        help="Number of K-fold rounds to perform",
-    )
-    init_global_args(subparser)
-
-
-def init_module_stats(parser):
-    msg = """
-    Submodule for basics statistics (mean, std, sig)
-    """
-    subparser = parser.add_parser("stats", help=msg)
-    init_global_args(subparser)
-
-
-def init_module_gmm(parser):
-    msg = """
-    Submodule for fitting Gaussian Mixture Model
-    """
-    subparser = parser.add_parser("gmm", help=msg)
-    init_global_args(subparser)
-    subparser.add_argument(
-        "--gmm-cache", default=".mri_cache", help="Directory to cache gmm models"
-    )
-
-
-def init_module_distance(parser):
-    msg = """
-    Submodule for computing various distances
-    """
-    subparser = parser.add_parser("distance", help=msg)
     init_global_args(subparser)
 
 
@@ -222,20 +147,62 @@ def init_module_snr(parser):
     init_global_args(subparser)
 
 
+def init_module_distance(parser):
+    msg = """
+    Submodule for computing various distances
+    """
+    subparser = parser.add_parser("distance", help=msg)
+    init_global_args(subparser)
+
+
+def init_module_stats(parser):
+    msg = """
+    Submodule for basics statistics (mean, std, sig)
+    """
+    subparser = parser.add_parser("stats", help=msg)
+    init_global_args(subparser)
+
+
+def init_module_cross_validation(parser):
+    msg = """
+    Submodule for cross-validation
+    """
+    subparser = parser.add_parser("cross-validation", help=msg)
+    init_global_args(subparser)
+
+
+domain_modules = {
+    "smri": stabilitest.mri.parse_args.init_module,
+}
+
+analysis_modules = {
+    "test": init_module_test,
+    "cross-validation": init_module_cross_validation,
+    "normality": init_module_normality,
+    "stats": init_module_stats,
+    "snr": init_module_snr,
+    "distance": init_module_distance,
+}
+
+
+def init_domain_modules(parser):
+    for module in domain_modules:
+        module.init(parser)
+
+
+def init_analysis_modules(parser):
+    for analysis_init in analysis_modules.values():
+        subparser = analysis_init(parser)
+        init_domain_modules(subparser)
+
+
 def parse_args():
-    parser = argparse.ArgumentParser(description="mri-stats", prog="mri-stats")
+    parser = argparse.ArgumentParser(description="stabilitest", prog="stabilitest")
     subparser = parser.add_subparsers(
-        title="MRI-stats submodules", help="MRI-stats submodules", dest="mri_test"
+        title="Model submodules", help="Model submodules", dest="model"
     )
-    init_module_loo(subparser)
-    init_module_all_include(subparser)
-    init_module_one(subparser)
-    init_module_normality(subparser)
-    init_module_k_fold(subparser)
-    init_module_stats(subparser)
-    init_module_gmm(subparser)
-    init_module_distance(subparser)
-    init_module_snr(subparser)
+    init_analysis_modules(subparser)
+    init_domain_modules(subparser)
 
     args, _ = parser.parse_known_args()
 

@@ -9,3 +9,5 @@ class Sample(ABC):
     @abstractmethod
     def get_size(self):
         pass
+
+    

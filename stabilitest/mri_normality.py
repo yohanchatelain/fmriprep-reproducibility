@@ -4,7 +4,7 @@ import scipy
 import nibabel
 import nilearn
 
-import stabilitest.MRI.mri_image as mri_image
+import stabilitest.mri.image as image
 import stabilitest.pprinter as pprinter
 
 
@@ -22,7 +22,7 @@ def test_normality(args, t1s, masks, alpha):
     Returns a binary Nifti image with voxels rejecting the normality test set to True
     """
 
-    t1_masked, supermask = mri_image.get_masked_t1s(args, t1s, masks)
+    t1_masked, supermask = image.get_masked_t1s(args, t1s, masks)
     (_, t1_shape) = t1_masked.shape
 
     nb_voxels = np.count_nonzero(supermask.get_fdata())
@@ -71,7 +71,7 @@ def run_test_normality(args):
     for confidence in args.confidence:
         alpha = 1 - confidence
 
-        t1s, masks = mri_image.load(
+        t1s, masks = image.load(
             prefix=args.reference_prefix,
             subject=args.reference_subject,
             dataset=args.reference_dataset,
@@ -101,7 +101,7 @@ def run_test_normality(args):
 
 
 def plot_normality_image(filename, template):
-    template_img = mri_image.get_template(template)
+    template_img = image.get_template(template)
     image = nibabel.load(filename)
     view = nilearn.plotting.view_img(
         image,

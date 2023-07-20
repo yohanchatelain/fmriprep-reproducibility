@@ -151,6 +151,23 @@ class GaussianMixture(Distribution):
         cdf = self.cdf(x)
         return 2 * np.min((cdf, 1 - cdf), axis=0)
 
+    def fit(self, x):
+        reg_covar = 10**-6
+        while reg_covar < 1:
+            gmm = GaussianMixture(
+                n_components=2, covariance_type="diag", verbose=2, reg_covar=reg_covar
+            )
+            try:
+                _fitted_model = gmm.fit(x)
+                self.parameters['loc'] = _fitted_model.means_
+                self.parameters['scale'] = _fitted_model.covariances_
+                self.parameters['weights'] = _fitted_model.weights_
+            except Exception:
+                reg_covar *= 10
+        if reg_covar == 1:
+            raise Exception('GMMFitNonConvergence')
+
+
 
 class SignificantDigits(Distribution):
     
@@ -167,13 +184,14 @@ class SignificantDigits(Distribution):
         )
 
     def p_value(self, x):
-        return significantdigits.significant_digits(
+        test = significantdigits.significant_digits(
             self.get_loc(),
             reference=x,
             axis=0,
             error=significantdigits.Error.Relative,
             method=significantdigits.Method.CNH,
         )
+        return test < self.parameters['loc']
 
 
 def get_distribution(args):
