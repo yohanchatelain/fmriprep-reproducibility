@@ -87,6 +87,7 @@ def plot(args):
             vmax=args.vmax,
             symmetric_cmap=False,
             title=args.title,
+            draw_cross=args.draw_cross,
         )
 
         view.open_in_browser()
@@ -125,7 +126,7 @@ def parse_args():
     parser.add_argument("--vmax", type=float)
     parser.add_argument("--output", help="output file")
     parser.add_argument("--colorbar", action="store_true", help="Show colorbar")
-    parser.add_argument("--draw_cross", action="store_true", help="Draw cross")
+    parser.add_argument("--draw-cross", action="store_true", help="Draw cross")
     parser.add_argument(
         "--show", action="store_true", help="Dynamic visualization in browser"
     )

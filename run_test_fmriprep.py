@@ -1,10 +1,12 @@
 import argparse
 import csv
 import json
+from multiprocessing import Pool
 import os
 import pickle
 import shutil
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from itertools import product
 
 import joblib
@@ -209,8 +211,6 @@ def _make_parameters_matrix(args, test, inputs):
                     )
                     output = os.path.join(path, "pickle", f"{counter}.pkl")
                     pickle_path = os.path.join(path, "pickle")
-                    if args.force:
-                        shutil.rmtree(pickle_path)
                     os.makedirs(pickle_path, exist_ok=True)
                     confidences = map(lambda c: f"{c:g}", args.confidence)
                     config = test_args(test)
@@ -398,6 +398,21 @@ def get_table(args, table_filename):
     return table, table_map
 
 
+def process_configuration(configuration):
+    ic(configuration)
+    stabilitest.main.main(configuration)
+
+
+def skip_cached(configurations, table_map):
+    to_process = []
+    for configuration, record in configurations:
+        if joblib.hash(record) in table_map:
+            print(f"Skip cached {configuration}")
+            continue
+        to_process.append((configuration, record))
+    return to_process
+
+
 def run_test(args, test, inputs):
     path = test
 
@@ -411,22 +426,41 @@ def run_test(args, test, inputs):
     inputs = get_inputs(args)
     configurations = make_configuration_matrix(args, test, inputs)
 
-    for (
-        configuration,
-        record,
-    ) in configurations:
-        if joblib.hash(record) in table_map:
-            print(f"Skip cached {configuration}")
-            continue
+    configurations = skip_cached(configurations, table_map)
+
+    configs, records = zip(*configurations)
+
+    config_partition = np.array_split(configs, 10)
+    records_partition = np.array_split(records, 10)
+
+    n_jobs = 4
+
+    for config_chunk, record_chunk in zip(config_partition, records_partition):
         if args.dry_run:
-            print(" ".join(configuration))
+            print(config_chunk, sep="\n")
         else:
-            ic(configuration)
-            stabilitest.main.main(configuration)
+            joblib.Parallel(n_jobs=n_jobs)(
+                joblib.delayed(process_configuration)(c) for c in config_chunk
+            )
+            table.extend(record_chunk)
+            dump_table(args, table_filename, table)
 
-        table.append(record)
+    # for (
+    #     configuration,
+    #     record,
+    # ) in configurations:
+    #     if joblib.hash(record) in table_map:
+    #         print(f"Skip cached {configuration}")
+    #         continue
+    #     if args.dry_run:
+    #         print(" ".join(configuration))
+    #     else:
+    #         config.append(process_configuration(configuration))
 
-        dump_table(args, table_filename, table)
+    #     table.append(record)
+
+    #     dump_table(args, table_filename, table)
+    # config.compute()
 
 
 def test_loo(args, inputs):
@@ -469,10 +503,13 @@ def main():
 
 
 if "__main__" == __name__:
+    dask.config.set(pool=ThreadPoolExecutor(4))
     main()
 
-# loo               x 336  -> 22h
-# ieee          7s  x 2688 -> 5h
-# version       7s  x 3024 -> 5h
-# architecture  7s  x 2016 -> 3h
-# template      7s  x 4032 -> 7h
+# Workers                      1  | 10    | 20   | 40    | 80 |
+# -------------------------------------------------------------
+# loo               x 336  -> 22h | 2.2 h | 1.1h | 0.55h | 0.25h
+# ieee          7s  x 2688 -> 5h  | 0.5h  |
+# version       7s  x 3024 -> 5h  | 0.5h
+# architecture  7s  x 2016 -> 3h  | 0.3h
+# template      7s  x 4032 -> 7h  | 0.35h
