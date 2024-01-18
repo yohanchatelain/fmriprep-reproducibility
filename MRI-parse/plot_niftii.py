@@ -35,6 +35,7 @@ def discretize(img):
 
 def _load_img(filename):
     img = nibabel.load(filename)
+    img = nibabel.Nifti1Image(img.get_fdata().astype(np.float32), img.affine)
     return img
 
 
