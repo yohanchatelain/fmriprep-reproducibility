@@ -1,6 +1,7 @@
 import argparse
 
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 import nibabel
 import nilearn.masking
 import nilearn.plotting
@@ -70,11 +71,9 @@ def load_mask(args):
 def plot(args):
     img = load_img(args)
     if args.discretize:
-        cmap = mpl.colormaps.get_cmap(args.cmap).resampled(
-            np.abs(args.vmax - args.vmin)
-        )
+        cmap = plt.get_cmap(args.cmap).resampled(np.abs(args.vmax - args.vmin))
     else:
-        cmap = mpl.colormaps.get_cmap(args.cmap)
+        cmap = plt.get_cmap(args.cmap)
 
     cut_coords = tuple(map(int, args.cut_coords))
     if args.show:

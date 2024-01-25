@@ -1,6 +1,7 @@
 import argparse
 import json
 from typing import Any
+import os
 
 from stabilitest.mri_loader.sample import configurator
 
@@ -40,9 +41,9 @@ architectures = [
     "graham-cascade",
     "narval-AMD",
 ]
-ieee_prefix = "20.2.1/ieee"
-rr_prefix = "20.2.1/rr"
-rs_prefix = "20.2.1/rs"
+ieee_prefix = "outputs/20.2.1/ieee"
+rr_prefix = "outputs/20.2.1/rr"
+rs_prefix = "outputs/20.2.1/rs"
 
 
 def create_default_configuration():
@@ -92,7 +93,7 @@ def create_hyperparameters(smoothing_kernels, mask_combination):
     """
     hyperparameters = {}
     hyperparameters["mask-combination"] = mask_combination
-    hyperparameters["smooth-kernek"] = smoothing_kernels
+    hyperparameters["smooth-kernel"] = smoothing_kernels
     return hyperparameters
 
 
@@ -165,7 +166,9 @@ def create_loo_configuration(inputs_dataset, dry_run=False):
                 if dry_run:
                     print(json.dumps(config, indent=2))
                 else:
-                    write_configuration(config, output_json)
+                    output_dir = "configs/loo"
+                    os.makedirs(output_dir, exist_ok=True)
+                    write_configuration(config, os.path.join(output_dir, output_json))
 
 
 def create_ieee_subjects_comparison_configuration(inputs_dataset, dry_run=False):
@@ -223,7 +226,11 @@ def create_ieee_subjects_comparison_configuration(inputs_dataset, dry_run=False)
                         if dry_run:
                             print(json.dumps(config, indent=2))
                         else:
-                            write_configuration(config, output_json)
+                            output_dir = "configs/ieee/subjects"
+                            os.makedirs(output_dir, exist_ok=True)
+                            write_configuration(
+                                config, os.path.join(output_dir, output_json)
+                            )
 
 
 def create_corrupted_template_configuration(inputs_dataset, dry_run=False):
@@ -262,7 +269,7 @@ def create_corrupted_template_configuration(inputs_dataset, dry_run=False):
                         perturbation,
                     )
                     target = create_target(
-                        "20.2.1/template/ieee",
+                        "outputs/20.2.1/template/ieee",
                         dataset,
                         subject,
                         template,
@@ -279,7 +286,11 @@ def create_corrupted_template_configuration(inputs_dataset, dry_run=False):
                     if dry_run:
                         print(json.dumps(config, indent=2))
                     else:
-                        write_configuration(config, output_json)
+                        output_dir = "configs/ieee/templates"
+                        os.makedirs(output_dir, exist_ok=True)
+                        write_configuration(
+                            config, os.path.join(output_dir, output_json)
+                        )
 
 
 def create_version_comparison_configuration(inputs_dataset, dry_run=False):
@@ -320,7 +331,7 @@ def create_version_comparison_configuration(inputs_dataset, dry_run=False):
                         perturbation,
                     )
                     target = create_target(
-                        f"{version}/ieee",
+                        f"outputs/{version}/ieee",
                         dataset,
                         subject,
                         template,
@@ -337,7 +348,11 @@ def create_version_comparison_configuration(inputs_dataset, dry_run=False):
                     if dry_run:
                         print(json.dumps(config, indent=2))
                     else:
-                        write_configuration(config, output_json)
+                        output_dir = "configs/ieee/versions"
+                        os.makedirs(output_dir, exist_ok=True)
+                        write_configuration(
+                            config, os.path.join(output_dir, output_json)
+                        )
 
 
 def parse_args():
