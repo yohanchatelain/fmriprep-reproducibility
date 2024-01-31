@@ -24,7 +24,7 @@ fmriprep_versions = [
     "22.1.1",
     "23.0.0",
 ]
-smoothing_kernels = list(range(20))
+smoothing_kernels = list(range(21))
 mask_combination = ["union"]
 
 reference_template = "MNI152NLin2009cAsym"
@@ -184,12 +184,13 @@ def create_ieee_subjects_comparison_configuration(inputs_dataset, dry_run=False)
     perturbation: variable
     """
     i = 0
-    ieee = {"prefix": ieee_prefix, "perturbation": "ieee"}
+    rr = {"prefix": rr_prefix, "perturbation": "rr"}
+    rs = {"prefix": rs_prefix, "perturbation": "rs"}
     template = reference_template
     version = fmriprep_reference_version
     architecture = reference_architecture
 
-    for mode in [ieee]:
+    for mode in [rr, rs]:
         prefix = mode["prefix"]
         perturbation = mode["perturbation"]
         for dataset1, subjects1 in inputs_dataset.items():
@@ -209,13 +210,13 @@ def create_ieee_subjects_comparison_configuration(inputs_dataset, dry_run=False)
                             perturbation,
                         )
                         target = create_target(
-                            prefix,
+                            "outputs/20.2.1/ieee",
                             dataset2,
                             subject2,
                             template,
                             version,
                             architecture,
-                            perturbation,
+                            "ieee",
                         )
                         hyperparameters = create_hyperparameters(
                             smoothing_kernels, mask_combination
@@ -246,11 +247,12 @@ def create_corrupted_template_configuration(inputs_dataset, dry_run=False):
     perturbation: variable
     """
     i = 0
-    ieee = {"prefix": ieee_prefix, "perturbation": "ieee"}
+    rr = {"prefix": rr_prefix, "perturbation": "rr"}
+    rs = {"prefix": rs_prefix, "perturbation": "rs"}
     version = fmriprep_reference_version
     architecture = reference_architecture
 
-    for mode in [ieee]:
+    for mode in [rr, rs]:
         prefix = mode["prefix"]
         perturbation = mode["perturbation"]
         for template in noised_templates:
@@ -275,7 +277,7 @@ def create_corrupted_template_configuration(inputs_dataset, dry_run=False):
                         template,
                         version,
                         architecture,
-                        perturbation,
+                        "ieee",
                     )
                     hyperparameters = create_hyperparameters(
                         smoothing_kernels, mask_combination
@@ -306,13 +308,12 @@ def create_version_comparison_configuration(inputs_dataset, dry_run=False):
     perturbation: variable
     """
     i = 0
-    ieee = {"prefix": ieee_prefix, "perturbation": "ieee"}
     rr = {"prefix": rr_prefix, "perturbation": "rr"}
     rs = {"prefix": rs_prefix, "perturbation": "rs"}
     template = reference_template
     architecture = reference_architecture
 
-    for mode in [ieee, rr, rs]:
+    for mode in [rr, rs]:
         prefix = mode["prefix"]
         perturbation = mode["perturbation"]
         for version in fmriprep_versions:
