@@ -66,3 +66,17 @@ osf -u $OSF_USERNAME -p $OSF_21_0_4 clone numerical-variability-data/fmriprep-fu
 osf -u $OSF_USERNAME -p $OSF_22_1_1 clone numerical-variability-data/fmriprep-fuzzylibm-results/22.1.1
 osf -u $OSF_USERNAME -p $OSF_23_0_0 clone numerical-variability-data/fmriprep-fuzzylibm-results/23.0.0
 osf -u $OSF_USERNAME -p $OSF_SIGNIFICANT_DIGITS clone numerical-variability-data/significant-digits
+
+# Extract archive
+
+for f in $(find numerical-variability-data -name "*.tar.gz"); do
+    echo "Extracting $f"
+    tar -C $(dirname $f) -xf $f
+done
+
+# Clean archives
+
+for t in $(find numerical-variability-data -name "*.tar.gz"); do
+    echo "Removing $t"
+    rm $t
+done

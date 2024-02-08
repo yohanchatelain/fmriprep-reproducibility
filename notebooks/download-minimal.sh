@@ -29,3 +29,10 @@ for f in $(find numerical-variability-data -name "*.tar.gz"); do
     echo "Extracting $f"
     tar -C $(dirname $f) -xf $f
 done
+
+# Clean archives
+
+for t in $(find numerical-variability-data -name "*.tar.gz"); do
+    echo "Removing $t"
+    rm $t
+done
